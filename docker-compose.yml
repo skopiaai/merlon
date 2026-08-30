@@ -1,0 +1,100 @@
+# Sentinel — offline security recon & triage platform
+#
+# NOTE: services bind to 127.0.0.1 only. This stack is not meant to be
+# reachable from your network. Do not change these to 0.0.0.0.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      args:
+        # "binary" (fast, default) or "source" (compiles with Go).
+        # Override:  INSTALL_MODE=source docker compose up --build
+        INSTALL_MODE: ${INSTALL_MODE:-binary}
+    container_name: bbwebapp-backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # A named volume, NOT a bind mount to ./data. SQLite in WAL mode needs
+      # shared-memory mmap, which Docker's macOS filesystem virtualisation
+      # doesn't support — you get "disk I/O error" on the first connection.
+      # A named volume is a real Linux filesystem, so WAL behaves.
+      - app-data:/data
+      - nuclei-templates:/root/nuclei-templates
+    environment:
+      SENTINEL_DB_PATH: /data/sentinel.db
+      SENTINEL_ARTIFACT_DIR: /data/artifacts
+      # Community template repos and takeover fingerprints live on the same
+      # named volume, so a container rebuild doesn't re-clone several hundred
+      # megabytes.
+      SENTINEL_TEMPLATE_DIR: /data/templates
+      SENTINEL_UPDATE_STATE: /data/update-state.json
+      # Refresh templates, fingerprints and tool binaries every 24h. Set to 0
+      # if you'd rather press the button yourself.
+      SENTINEL_AUTO_UPDATE: "${SENTINEL_AUTO_UPDATE:-1}"
+      # Ollama runs on the macOS host, not in a container.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+      SENTINEL_MAX_CONCURRENT_SCANS: "2"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - lab
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: bbwebapp-frontend
+    ports:
+      - "127.0.0.1:5173:5173"
+    environment:
+      VITE_API_BASE: http://127.0.0.1:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------
+  # Deliberately vulnerable targets, for integration testing only.
+  #
+  # Started only with `--profile lab`, and attached to an INTERNAL network:
+  # no host ports, no route to the internet, unreachable from your LAN. They
+  # exist so the test suite can run the real pipeline against a target with
+  # known vulnerabilities and assert what it should find.
+  #
+  # Never expose these. They are intentionally insecure.
+  # ---------------------------------------------------------------------
+
+  juiceshop:
+    image: bkimminich/juice-shop:latest
+    container_name: bbwebapp-lab-juiceshop
+    profiles: ["lab"]
+    networks:
+      lab:
+        aliases:
+          # .test is reserved for testing (RFC 6761), and having a dot keeps
+          # it a syntactically valid hostname for the scope rules.
+          - juiceshop.test
+    restart: "no"
+
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: bbwebapp-lab-dvwa
+    profiles: ["lab"]
+    networks:
+      lab:
+        aliases:
+          - dvwa.test
+    restart: "no"
+
+networks:
+  default:
+  lab:
+    # internal: no bridge to the host or the internet. The vulnerable
+    # containers can only be reached from the backend container.
+    internal: true
+
+volumes:
+  app-data:
+  nuclei-templates:

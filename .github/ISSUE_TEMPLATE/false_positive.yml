@@ -1,0 +1,35 @@
+name: False positive
+description: A finding that isn't real
+labels: [false-positive]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are the most valuable reports this project gets. Precision is
+        what a scanner's reputation is made of, and every wrong finding costs
+        an operator credibility with a triage team.
+
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID
+      description: From the finding — e.g. `open-redirect`, `exposed-.env`
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it isn't real
+      description: >-
+        What the application is actually doing. Example: "the site returns 200
+        with its SPA shell for every path, so the 200 on /.env means nothing."
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Request and response, redacted.
+      render: http

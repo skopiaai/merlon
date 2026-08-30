@@ -1,0 +1,5 @@
+# Never copy host node_modules into the image — the platform binaries won't
+# match and the container's own npm install gets clobbered.
+node_modules
+dist
+.vite

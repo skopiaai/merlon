@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the tool behaves incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you post:** never attach real findings about a third party's
+        systems to a public issue. Redact hostnames, or describe the shape of
+        the problem instead. A finding is somebody's unpatched vulnerability
+        until they fix it.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Depth preset used (sprint / quick / standard / deep)
+        2. Target type — a description is fine, don't post a real hostname
+        3. Whether credentials were configured
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Scan log
+      description: >-
+        From the Console tab. The single most useful thing you can attach for a
+        scan that misbehaved. Redact hostnames.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Docker on macOS (Apple silicon)
+        - Docker on macOS (Intel)
+        - Docker on Linux
+        - Docker on Windows / WSL2
+        - Other
+    validations:
+      required: true

@@ -1,0 +1,46 @@
+# --- scan data: findings about real systems, and stored credentials ---
+# This is the single most important entry in this file. The database holds
+# engagement records, findings about third-party systems, and session cookies
+# in plaintext. It must never be committed, and it must never be attached to
+# a bug report.
+data/
+*.db
+*.db-wal
+*.db-shm
+update-state.json
+
+# --- secrets and local config ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- dependencies and build output ---
+node_modules/
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+
+# --- caches ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- editors and OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- runtime artefacts ---
+templates/
+wordlists/
+*.log

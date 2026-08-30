@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A pull request that touches an engine should fail here before a human looks
+# at it. The unit suite is a couple of seconds and covers the properties that
+# matter most — scope containment, credential handling, false-positive
+# suppression — so there is no reason not to run it on everything.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          # The app creates its data directory at import time; point it at a
+          # temporary path so CI doesn't need /data to exist.
+          SENTINEL_DB_PATH: /tmp/ci/sentinel.db
+          SENTINEL_ARTIFACT_DIR: /tmp/ci/artifacts
+          SENTINEL_TEMPLATE_DIR: /tmp/ci/templates
+          SENTINEL_UPDATE_STATE: /tmp/ci/update-state.json
+          # Never let CI reach out to update template repositories.
+          SENTINEL_AUTO_UPDATE: "0"
+        run: pytest -q --ignore=tests/integration
+
+  frontend:
+    name: Frontend typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      # Advisory rather than blocking: style opinions shouldn't stop a good
+      # detection from landing.
+      - run: ruff check backend/ || true
+
+  images:
+    name: Docker build
+    runs-on: ubuntu-latest
+    # The image installs a dozen scanning tools from upstream releases, so it
+    # is slow and it breaks for reasons that have nothing to do with the
+    # change under review. Run it on main and on demand, not on every PR.
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # This repository stores session cookies at runtime. A commit that
+      # accidentally includes one should be caught here rather than by
+      # somebody reading the diff.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

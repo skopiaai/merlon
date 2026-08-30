@@ -1,0 +1,41 @@
+name: New detection
+description: Propose a check the scanner should perform
+labels: [engine, enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should it detect
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: What does an attacker do with it
+      description: >-
+        Not the technical description — the consequence. This determines
+        severity and it's what the finding's description has to explain.
+    validations:
+      required: true
+
+  - type: textarea
+    id: fp
+    attributes:
+      label: How could this be wrong
+      description: >-
+        The most important field. What would make a naive version of this check
+        report something that isn't real? Every engine here has a test whose
+        whole purpose is holding down its most likely false positive.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Constraints
+      options:
+        - label: This can be confirmed without modifying anything on the target
+          required: true
+        - label: This is detection, not exploitation
+          required: true

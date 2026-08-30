@@ -1,0 +1,112 @@
+Sentinel
+Copyright 2026 Neel
+
+This product includes software developed by the copyright holder and
+distributed under the Apache License, Version 2.0. See LICENSE.
+
+================================================================================
+THIRD-PARTY SOFTWARE
+================================================================================
+
+Sentinel is an orchestrator. Most of the actual scanning is done by established
+open-source tools, invoked as separate processes. This project claims no
+authorship of them, and the credit for what this tool finds substantially
+belongs to their maintainers.
+
+The Docker image built by this repository *installs and redistributes* the
+software below. That distinction matters: invoking a program is not the same as
+shipping it, and shipping it brings that program's licence terms along.
+
+--------------------------------------------------------------------------------
+Scanning tools (installed into the Docker image)
+--------------------------------------------------------------------------------
+
+ProjectDiscovery suite — MIT License
+  subfinder, dnsx, httpx, naabu, katana, nuclei, tlsx, cdncheck, asnmap, alterx
+  https://github.com/projectdiscovery
+  Copyright (c) ProjectDiscovery
+
+nuclei-templates — MIT License
+  https://github.com/projectdiscovery/nuclei-templates
+  The detection content that does most of the work. Updated continuously by
+  hundreds of contributors.
+
+ffuf — MIT License
+  https://github.com/ffuf/ffuf
+  Copyright (c) Joona Hoikkala
+
+SecLists — MIT License
+  https://github.com/danielmiessler/SecLists
+  Copyright (c) Daniel Miessler, Jason Haddix, Ignacio Portal
+
+gitleaks — MIT License
+  https://github.com/gitleaks/gitleaks
+
+Semgrep — LGPL 2.1
+  https://github.com/semgrep/semgrep
+
+testssl.sh — GPLv2
+  https://github.com/drwetter/testssl.sh
+  Copyright (c) Dirk Wetter
+
+Nmap — Nmap Public Source License (NPSL)
+  https://nmap.org/npsl/
+  IMPORTANT: the NPSL is a modified GPLv2 and is NOT an OSI-approved licence.
+  It restricts redistribution of Nmap within commercial or proprietary products
+  without a separate commercial licence from Nmap Software LLC. If you intend
+  to distribute this Docker image commercially, or bundle it into a paid
+  product, read the NPSL first — Apache 2.0 on this repository does not and
+  cannot relicense Nmap.
+
+Volatility 3 — Volatility Software License
+  https://github.com/volatilityfoundation/volatility3
+
+radare2 — LGPLv3      https://github.com/radareorg/radare2
+binwalk — MIT         https://github.com/ReFirmLabs/binwalk
+steghide — GPLv2      http://steghide.sourceforge.net/
+ExifTool — Perl Artistic / GPL (dual)
+                      https://exiftool.org/
+
+curl, dig (bind9-dnsutils), whois — as packaged by Debian; see the image.
+
+--------------------------------------------------------------------------------
+Python libraries
+--------------------------------------------------------------------------------
+
+FastAPI (MIT), Starlette (BSD-3-Clause), Uvicorn (BSD-3-Clause),
+SQLAlchemy (MIT), Pydantic (MIT), httpx (BSD-3-Clause),
+python-multipart (Apache-2.0), Jinja2 (BSD-3-Clause)
+
+CTF tooling: pwntools (MIT), pycryptodome (BSD-2-Clause / public domain),
+SymPy (BSD-3-Clause), Scapy (GPLv2), pymodbus (BSD-3-Clause),
+pymavlink (LGPLv3)
+
+--------------------------------------------------------------------------------
+Frontend
+--------------------------------------------------------------------------------
+
+React (MIT), Vite (MIT), TanStack Query (MIT), TypeScript (Apache-2.0)
+
+--------------------------------------------------------------------------------
+Data sources queried at runtime
+--------------------------------------------------------------------------------
+
+These are public services this tool sends queries to. It does not redistribute
+their data, but their terms of use apply to you when you use them.
+
+  crt.sh                     Certificate transparency logs (Sectigo)
+  Internet Archive CDX API   Historical URLs — see archive.org terms
+  can-i-take-over-xyz        Subdomain takeover fingerprints (CC0 / see repo)
+                             https://github.com/EdOverflow/can-i-take-over-xyz
+
+The community nuclei template repositories synced by the updater each carry
+their own licence. They are cloned at runtime into your data volume and are not
+redistributed by this repository. Check the licence of any repository you sync
+before relying on its content in commercial work.
+
+--------------------------------------------------------------------------------
+
+Licence identifications above are given in good faith and were accurate to the
+best of our knowledge at the time of writing. Upstream projects relicense.
+If you are redistributing this image — especially commercially — verify each
+one yourself rather than relying on this file.
