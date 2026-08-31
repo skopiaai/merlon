@@ -667,6 +667,42 @@ details.rawlog pre {
 }
 .pro textarea { resize: vertical; min-height: 72px; }
 
+/* ---------- submission queue ---------- */
+
+.conf {
+  font-family: var(--font-mono); font-weight: 700; font-size: 12px;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line);
+}
+.conf.good { color: var(--lime); border-color: var(--lime); }
+.conf.warn { color: var(--amber); border-color: var(--amber); }
+.conf.bad  { color: var(--crit); border-color: var(--crit); }
+
+.reasons {
+  background: var(--surface-2, var(--surface)); font-size: 11.5px;
+  color: var(--ink-2); padding: 12px 16px 14px;
+}
+.reasons strong {
+  display: block; margin-bottom: 6px; font-family: var(--font-display);
+  text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px;
+  color: var(--ink-3);
+}
+.reasons ul { margin: 0 0 10px; padding-left: 18px; line-height: 1.7; }
+
+/* ---------- attack surface changes ---------- */
+
+.changes {
+  margin: 14px 0 0; padding: 12px 15px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--neon); font-size: 12px; line-height: 1.6;
+}
+.changes h3 {
+  margin: 0 0 6px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--ink-2);
+}
+.changes .new { color: var(--lime); font-family: var(--font-mono); }
+.changes .gone { color: var(--ink-3); font-family: var(--font-mono); }
+.changes ul { margin: 6px 0 0; padding-left: 18px; }
+
 /* ---------- session verification results ---------- */
 
 .pro .card.warn { border-left: 3px solid var(--amber); background: var(--warn-bg); }

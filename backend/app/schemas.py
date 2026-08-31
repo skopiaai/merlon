@@ -137,6 +137,11 @@ class FindingOut(BaseModel):
     triage_confidence: float | None
     triage_note: str
     analyst_note: str
+    # Independent re-verification — computed from whether the finding actually
+    # reproduces, not from the model's opinion of it.
+    verify_confidence: float | None = None
+    reproduced: bool = False
+    verified_at: datetime | None = None
     created_at: datetime
 
 

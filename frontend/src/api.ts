@@ -6,6 +6,23 @@ export type FindingStatus =
   | "new" | "triaging" | "confirmed" | "false_positive"
   | "accepted_risk" | "reported" | "fixed";
 
+/** A finding as it appears in the submission queue. */
+export interface QueueEntry {
+  id: number;
+  name: string;
+  severity: Severity;
+  host: string;
+  url: string;
+  engine: string;
+  rule_id: string;
+  status: string;
+  confidence: number | null;
+  reproduced: boolean;
+  verified_at: string | null;
+  reasons: string[];
+  why?: string;
+}
+
 /** One account the scanner can act as. Two of these enable IDOR detection. */
 export interface Identity {
   name: string;
@@ -185,6 +202,40 @@ export const api = {
 
   health: () => req<{ status: string; ollama: { reachable: boolean; models: string[] } }>("/api/health"),
   updateTemplates: () => req<{ output: string }>("/api/system/update-templates", { method: "POST" }),
+
+  // --- submission queue -------------------------------------------------
+  // Split by whether a finding reproduces, not by severity.
+  submissionQueue: (scanId: number) => req<{
+    threshold: number;
+    ready: QueueEntry[];
+    needs_review: QueueEntry[];
+    did_not_reproduce: QueueEntry[];
+    counts: { ready: number; needs_review: number;
+              did_not_reproduce: number; total: number };
+  }>(`/api/scans/${scanId}/queue`),
+
+  verifyFinding: (id: number) => req<{
+    confidence: number; reproduced: boolean; submittable: boolean;
+    reasons: string[]; evidence: unknown[];
+  }>(`/api/findings/${id}/verify`, { method: "POST" }),
+
+  // --- continuous monitoring --------------------------------------------
+  engagementDiff: (eid: number) => req<{
+    available: boolean;
+    detail?: string;
+    baseline_scan?: number;
+    current_scan?: number;
+    new_hosts: string[];
+    gone_hosts: string[];
+    new_urls: string[];
+    changed: { host: string; before: string; after: string; why: string }[];
+    interesting: boolean;
+    counts: { new_hosts: number; gone_hosts: number;
+              new_urls: number; changed: number };
+  }>(`/api/engagements/${eid}/diff`),
+
+  rescan: (eid: number) =>
+    req<Scan>(`/api/engagements/${eid}/rescan`, { method: "POST" }),
 
   updateStatus: () => req<{
     last_run: number | null;

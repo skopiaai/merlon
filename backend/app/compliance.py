@@ -254,6 +254,28 @@ RULE_MAP: dict[str, Controls] = {
         "A01:2021 Broken Access Control", ["V4.2.1", "V4.1.3", "V13.1.4"],
         ["A.5.15", "A.8.3"], ["3.3", "6.8"], "Access control",
         ["CWE-639", "CWE-284", "CWE-863"]),
+
+    # infrastructure exposed behind a CDN
+    "origin-ip-exposed": Controls(
+        "A05:2021 Security Misconfiguration", ["V1.14.1", "V14.1.1"],
+        ["A.8.20", "A.8.9"], ["4.1", "13.10"], "Network security",
+        ["CWE-693", "CWE-1327"]),
+
+    # LLM-backed applications. The OWASP web Top 10 predates these, so the
+    # mapping lands them in the nearest applicable web category while the GIGW
+    # column names what they actually are — an audit reader needs both.
+    "llm-prompt-injection": Controls(
+        "A03:2021 Injection", ["V5.1.1", "V5.3.4"], ["A.8.28", "A.8.26"],
+        ["16.11"], "AI system security (OWASP LLM01)", ["CWE-77", "CWE-1427"]),
+    "llm-system-prompt-leak": Controls(
+        "A05:2021 Security Misconfiguration", ["V14.3.2"], ["A.8.4", "A.5.14"],
+        ["3.3"], "AI system security (OWASP LLM07)", ["CWE-200"]),
+    "llm-unbounded-consumption": Controls(
+        "A04:2021 Insecure Design", ["V13.4.1", "V11.1.4"], ["A.8.6"],
+        ["13.10"], "AI system security (OWASP LLM10)", ["CWE-770"]),
+    "llm-": Controls(
+        "A04:2021 Insecure Design", ["V5.1.1"], ["A.8.26"], ["16.11"],
+        "AI system security", ["CWE-1427"]),
 }
 
 # ---- fallback by nuclei tag ----------------------------------------------

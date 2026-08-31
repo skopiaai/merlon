@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from . import auth as authmod
-from . import compliance, headers, intel, normalize, updater
+from . import compliance, headers, intel, normalize, updater, verify
 from .config import MAX_CONCURRENCY, MAX_CONCURRENT_SCANS, MAX_RATE_LIMIT
 from .db import SessionLocal
 from .engines import extra, registry
@@ -191,10 +191,12 @@ class ScanRunner:
         weights = {
             "seed": 1, "subfinder": 6, "dnsx": 3, "cdncheck": 2, "naabu": 10,
             "httpx": 6, "nmap": 18, "tlsx": 4, "ffuf": 15, "katana": 10,
-            "nuclei": 45, "permute": 12, "correlate": 2, "intel": 8, "triage": 12,
+            "nuclei": 45, "permute": 12, "correlate": 2, "verify": 10,
+            "intel": 8, "triage": 12,
             **registry.weights(),
         }
-        self._stage_plan = ["seed"] + [s for s in stages if s in weights] + ["correlate"]
+        self._stage_plan = (["seed"] + [s for s in stages if s in weights]
+                            + ["correlate", "verify"])
         if "triage" in stages:
             self._stage_plan.append("intel")
         self._weights = [weights.get(s, 5) for s in self._stage_plan]
@@ -625,6 +627,27 @@ class ScanRunner:
         if chains:
             await self.log("info", f"correlated {len(chains)} attack path(s)", "correlate")
         await self._end("correlate")
+
+        # --- independent re-verification ---
+        # Runs before triage on purpose. Triage is the LLM reading findings;
+        # verification is the machine re-testing them. If a finding doesn't
+        # reproduce, no amount of LLM commentary makes it submittable, and
+        # knowing that first stops the model from writing a confident narrative
+        # around something that isn't there.
+        await self._begin("verify")
+        try:
+            checked, ready = await verify.verify_scan(
+                self.scan_id,
+                ctx={"auth_headers": self.auth_headers, "allow": allow, "deny": deny},
+                log=self.log)
+            await self.log("info",
+                           f"re-verified {checked} finding(s) — {ready} reproduce "
+                           f"with evidence and are ready to submit", "verify")
+            await self._save_stat("submittable", ready)
+        except Exception as exc:  # noqa: BLE001
+            # Verification is additive. A failure here must never lose findings.
+            await self.log("warn", f"verification failed: {exc}", "verify")
+        await self._end("verify")
 
         # --- LLM triage ---
         if "triage" in stages:

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, scanSocket, SEVERITY_COLOR, type Severity } from "../api";
+import Queue from "./Queue";
 
 interface LogLine { level: string; stage: string; message: string; ts: string; }
 
@@ -9,6 +10,7 @@ export default function ScanDetail({ id, onBack }: { id: number; onBack: () => v
   const [lines, setLines] = useState<LogLine[]>([]);
   const [showDebug, setShowDebug] = useState(false);
   const [report, setReport] = useState<string | null>(null);
+  const [showQueue, setShowQueue] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
 
   const scan = useQuery({
@@ -54,10 +56,29 @@ export default function ScanDetail({ id, onBack }: { id: number; onBack: () => v
     return acc;
   }, {});
 
+  // The queue is a full view rather than a panel: deciding what to file is a
+  // different job from watching a scan run, and mixing them means reading past
+  // the log to get to the decision.
+  if (showQueue) {
+    return (
+      <>
+        <button className="btn ghost sm" onClick={() => setShowQueue(false)}
+          style={{ marginBottom: 14 }}>← Scan #{id}</button>
+        <Queue scanId={id} />
+      </>
+    );
+  }
+
   return (
     <>
       <button className="btn ghost sm" onClick={onBack} style={{ marginBottom: 14 }}>← Scans</button>
-      <h2>Scan #{id}</h2>
+
+      <div className="row" style={{ alignItems: "center", gap: 10 }}>
+        <h2 style={{ flex: 1 }}>Scan #{id}</h2>
+        <button className="btn sm" onClick={() => setShowQueue(true)}>
+          Submission queue
+        </button>
+      </div>
       <p className="subtitle">{s?.seeds.join(", ")} · {s?.profile}</p>
 
       {s?.error && <div className="banner err"><strong>Failed:</strong> {s.error}</div>}

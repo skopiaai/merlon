@@ -3,7 +3,7 @@
 **A self-hosted attack surface scanner that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-474%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-525%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Sentinel orchestrates twenty-odd established open-source scanners, normalises
@@ -56,6 +56,15 @@ pays most, and it's absent from scanners that hold a single session.
 **Site compromise** — SEO spam and cloaking detection, for the class of attack
 where a legitimate site serves gambling content to Googlebot and the real page
 to everyone else.
+
+**Origin servers behind a CDN** — hosts reachable directly despite sitting
+behind Cloudflare or similar, found via DNS history, mail records, un-proxied
+subdomains and certificate data. Confirmed by asking the candidate address for
+the target's `Host` and checking it serves the target's site.
+
+**AI assistants** — LLM-backed endpoints tested for prompt injection, system
+prompt leakage and unbounded consumption (OWASP LLM01/07/10). Prompt injection
+reports rose 540% year on year and almost nothing scans for them.
 
 **Reporting** — findings mapped to OWASP Top 10, ASVS 4.0, ISO 27001 Annex A,
 CIS v8 and GIGW 3.0; SARIF export; and an audit-grade document with the
@@ -166,9 +175,14 @@ choice sticks.
 Type a domain, tick the permission box, hit **Scan**. That's the whole flow.
 
 Results come back as plain English: what the issue is, why it matters, and the
-specific header or config line that fixes it. Pick **Quick** (~2 min, main site
-only), **Standard** (~10 min, includes subdomains), or **Deep** (30 min+, ports
-and crawling).
+specific header or config line that fixes it. Pick **Sprint** (~2 min, critical
+and high only — for when being first matters), **Quick** (~5 min, main site),
+**Standard** (~10 min, includes subdomains), or **Deep** (30 min+, ports and
+crawling).
+
+When it finishes, **Submission queue** is the view worth opening — it splits
+findings by whether they actually reproduce rather than by how severe they
+claim to be.
 
 Behind the scenes this still creates a proper engagement with scope rules and an
 authorization record — it just derives them from the domain instead of making
@@ -278,6 +292,10 @@ open-source recon frameworks — and the gaps they exposed have been closed.
 | CORS / open redirect / 403 bypass | via nuclei | ✗ | via nuclei | ✓ dedicated |
 | Favicon fingerprinting | ✗ | ✓ | ✓ | ✓ |
 | ASN / netblock expansion | ✗ | ✓ | ✓ | ✓ |
+| Origin IP discovery behind a CDN | ✗ | partial | ✓ | ✓ |
+| **AI/LLM application testing** | ✗ | ✗ | ✗ | ✓ |
+| **Independent re-verification + submission gate** | ✗ | ✗ | ✗ | ✓ |
+| Continuous monitoring / asset diffing | ✓ | ✗ | ✗ | ✓ |
 | Screenshot gallery | ✓ | – | ✓ | ✗ |
 | **Compliance control mapping** | ✗ | ✗ | ✗ | ✓ |
 | **Cloaking / SEO-spam detection** | ✗ | ✗ | ✗ | ✓ |
@@ -485,6 +503,74 @@ immediately reportable on their own — takeover, exposed files, debug endpoints
 leaked secrets, CORS — with nuclei restricted to critical and high. No port
 scan, no fuzzing, no crawl, no AI triage. It is not thorough and isn't trying
 to be.
+
+---
+
+## The submission queue
+
+The scarce thing in bug bounty is no longer finding issues — it's proving them.
+Autonomous agents reached the top of HackerOne's leaderboard in 2026, and in the
+same year Google stopped accepting AI-generated vulnerability reports and the
+Internet Bug Bounty suspended payouts, because the volume of machine-generated
+findings made triage impossible.
+
+That changes the economics for whoever is submitting. A researcher with 200
+reports and 50 accepted gets slower triage and smaller payouts than one with 50
+reports and 40 accepted. **Acceptance rate is the currency, not volume.**
+
+So every scan ends with a verification pass that asks one question about each
+finding: *if a triager runs this right now, does it still happen?*
+
+| | |
+|---|---|
+| **Reproduce** | Re-request it. Doesn't answer? It doesn't reach the queue. |
+| **Reproduce again** | A second attempt, because transients are the most common false positive. |
+| **Control** | A path that shouldn't exist. If the host answers that identically, the finding is an artefact of the host, not a bug. |
+| **Evidence quality** | Does the finding show a request/response exchange, or just assert something? |
+
+Findings land in one of three buckets — **ready to submit**, **needs your
+eyes**, **did not reproduce** — and nothing is hidden; the failures are listed
+with their reasons.
+
+**Confidence comes from evidence, never from opinion.** The local LLM still
+writes triage commentary and it's still useful, but its score is stored
+separately (`triage_confidence`) and given zero weight in the gate. An LLM's
+belief that a finding is real is precisely the signal that produced the
+industry's flood of unreproducible reports.
+
+Every verified finding carries a reproduction block: the exact request, the
+exact response, a SHA-256 of the body, and a UTC timestamp — with credentials
+redacted, so a report never becomes the second copy of a leak.
+
+```
+GET /api/scans/{id}/queue          the three buckets
+POST /api/findings/{id}/verify     re-check one on demand
+GET /api/findings/{id}/evidence    reproduction block, ready to paste
+```
+
+---
+
+## Monitoring for new attack surface
+
+The most reliable edge is arriving first, and the moment that's possible is the
+moment an asset appears. A subdomain that went live this morning has not been
+hunted by anyone — every other researcher's last scan predates it.
+
+So `GET /api/engagements/{id}/diff` compares the two most recent completed scans
+and reports the **difference**, not the state:
+
+- **New hosts** — unhunted by definition, and the highest-value line in the output
+- **Changed hosts** — a 404 that became a 200, a login form that appeared, a framework that changed version
+- **Disappeared hosts** — worth knowing for the opposite reason: a name still pointing at a decommissioned service is exactly how subdomain takeovers happen
+
+Signatures are status, title and technology rather than response bodies. Diffing
+bodies would fire on every deploy and every rotating CSRF token, which trains
+you to ignore the alert.
+
+`POST /api/engagements/{id}/rescan` repeats the last scan's configuration so
+there's something to diff against. Expired engagements are excluded — a
+scheduler is exactly where a scan against lapsed authorization would happen
+without anyone noticing.
 
 ---
 

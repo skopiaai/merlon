@@ -4,7 +4,8 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    JSON, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+    JSON, Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
+    UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -182,6 +183,17 @@ class Finding(Base):
     triage_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0..1, LLM-assigned
     triage_note: Mapped[str] = mapped_column(Text, default="")
     analyst_note: Mapped[str] = mapped_column(Text, default="")
+
+    # --- independent re-verification (app/verify.py) ---
+    # Deliberately separate from triage_confidence, which is the LLM's opinion.
+    # This one is computed from facts: did it reproduce, did it reproduce twice,
+    # did a control request behave differently. An LLM's belief that a finding
+    # is real is precisely the signal that produced the industry-wide flood of
+    # unreproducible AI reports, so it is recorded and given no weight here.
+    verify_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reproduced: Mapped[bool] = mapped_column(Boolean, default=False)
+    verification: Mapped[dict] = mapped_column(JSON, default=dict)  # evidence + reasons
 
     raw: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

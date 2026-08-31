@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from . import (analyzer, audit_report, auth, cryptosolve, ctf, ctf_writeup,
                forensics, intel, llm, orchestrator, reporting, sarif, schemas,
-               scope, updater)
+               scope, updater, verify, watch)
 from .config import ARTIFACT_DIR, DB_PATH
 from .db import get_db, init_db
 from .engines import nuclei as nuclei_engine
@@ -59,7 +59,10 @@ async def lifespan(_: FastAPI):
     if orphans:
         logging.warning("Reconciled %d scan(s) interrupted by a restart", orphans)
 
-    watch = asyncio.create_task(orchestrator.watchdog())
+    # Named `watchdog_task`, not `watch` — the `watch` module is imported above
+    # and a local of the same name would shadow it for the rest of this
+    # function. Harmless today; a trap for whoever adds a line here next.
+    watchdog_task = asyncio.create_task(orchestrator.watchdog())
     # Detection content goes stale in days, not months. Keeping it current
     # automatically is the difference between finding a newly published issue
     # and reading about someone else finding it.
@@ -67,7 +70,7 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
-        watch.cancel()
+        watchdog_task.cancel()
         refresh.cancel()
 
 
@@ -706,6 +709,141 @@ async def verify_engagement_auth(eid: int, db: Session = Depends(get_db)):
         "identities": identities,
         "access_control_testing": ok and any(i["ok"] for i in identities),
     }
+
+
+@app.get("/api/engagements/{eid}/diff")
+def engagement_diff(eid: int, db: Session = Depends(get_db)):
+    """What changed in this engagement's attack surface since the last scan.
+
+    The diff is the product, not the scan. A full report is a list you've
+    already read; three lines saying a host appeared four hours ago is the
+    thing worth acting on, because a host nobody has scanned yet is a host
+    nobody has hunted.
+    """
+    if not db.get(Engagement, eid):
+        raise HTTPException(404, "engagement not found")
+    return watch.diff_engagement(eid)
+
+
+@app.get("/api/watch")
+def watch_status():
+    """Engagements eligible for re-scanning, and when each was last looked at.
+
+    Expired engagements are excluded — a scheduler is exactly where a scan
+    against lapsed authorization would happen without anyone noticing.
+    """
+    return {"engagements": watch.watch_targets()}
+
+
+@app.post("/api/engagements/{eid}/rescan", response_model=schemas.ScanOut,
+          status_code=201)
+def rescan(eid: int, db: Session = Depends(get_db)):
+    """Re-run the most recent scan's configuration, to diff against it."""
+    eng = db.get(Engagement, eid)
+    if not eng:
+        raise HTTPException(404, "engagement not found")
+    if eng.is_expired:
+        raise HTTPException(403, "engagement authorization has expired")
+
+    last = db.scalars(
+        select(Scan).where(Scan.engagement_id == eid,
+                           Scan.state == ScanState.completed)
+        .order_by(Scan.finished_at.desc()).limit(1)).first()
+    if not last:
+        raise HTTPException(400, "no completed scan to repeat — run one first")
+
+    scan = Scan(engagement_id=eid, seeds=list(last.seeds),
+                profile=last.profile, stages=list(last.stages))
+    db.add(scan)
+    db.commit()
+    db.refresh(scan)
+    orchestrator.start_scan(scan.id)
+    return scan
+
+
+@app.get("/api/scans/{sid}/queue")
+def submission_queue(sid: int, db: Session = Depends(get_db)):
+    """Findings split by whether they are ready to submit.
+
+    The split is on reproducibility and evidence, not severity. A critical that
+    doesn't reproduce is worth less than an informational finding that does —
+    the first wastes a triager's time and costs you acceptance rate, which in
+    2026 is what determines how fast your next report gets looked at.
+    """
+    findings = list(db.scalars(
+        select(Finding).where(Finding.scan_id == sid)
+        .order_by(Finding.severity.desc(), Finding.verify_confidence.desc())))
+
+    ready, review, failed = [], [], []
+    for f in findings:
+        entry = {
+            "id": f.id, "name": f.name, "severity": f.severity,
+            "host": f.host, "url": f.url, "engine": f.engine,
+            "rule_id": f.rule_id, "status": f.status,
+            "confidence": f.verify_confidence,
+            "reproduced": f.reproduced,
+            "verified_at": f.verified_at,
+            "reasons": (f.verification or {}).get("reasons", []),
+        }
+        if f.verify_confidence is None:
+            review.append({**entry, "why": "not yet verified"})
+        elif not f.reproduced:
+            failed.append({**entry, "why": "did not reproduce on retest"})
+        elif f.verify_confidence >= verify.SUBMIT_THRESHOLD:
+            ready.append(entry)
+        else:
+            review.append({**entry, "why": "reproduced, but evidence is not "
+                                           "strong enough to submit unreviewed"})
+
+    return {
+        "threshold": verify.SUBMIT_THRESHOLD,
+        "ready": ready,
+        "needs_review": review,
+        "did_not_reproduce": failed,
+        "counts": {"ready": len(ready), "needs_review": len(review),
+                   "did_not_reproduce": len(failed), "total": len(findings)},
+    }
+
+
+@app.post("/api/findings/{fid}/verify")
+async def verify_one(fid: int, db: Session = Depends(get_db)):
+    """Re-verify a single finding on demand."""
+    finding = db.get(Finding, fid)
+    if not finding:
+        raise HTTPException(404, "finding not found")
+
+    scan = db.get(Scan, finding.scan_id)
+    eng = db.get(Engagement, scan.engagement_id) if scan else None
+    ctx = {
+        "auth_headers": dict(eng.auth_headers or {}) if eng else {},
+        "allow": list(eng.allow_rules) if eng else [],
+        "deny": list(eng.deny_rules) if eng else [],
+    }
+
+    verdict = await verify.verify_finding({
+        "engine": finding.engine, "rule_id": finding.rule_id,
+        "url": finding.url, "matched_at": finding.matched_at,
+        "evidence": finding.evidence, "remediation": finding.remediation,
+        "references": finding.references, "cwe": finding.cwe,
+    }, ctx)
+
+    finding.verify_confidence = round(verdict.confidence, 3)
+    finding.reproduced = verdict.reproduced
+    finding.verified_at = datetime.now(timezone.utc)
+    finding.verification = verdict.as_dict()
+    db.commit()
+    return verdict.as_dict()
+
+
+@app.get("/api/findings/{fid}/evidence", response_class=PlainTextResponse)
+def finding_evidence(fid: int, db: Session = Depends(get_db)):
+    """The reproduction section, ready to paste into a report."""
+    finding = db.get(Finding, fid)
+    if not finding:
+        raise HTTPException(404, "finding not found")
+    if not finding.verification:
+        return "Not yet verified. POST /api/findings/{id}/verify first."
+    return verify.evidence_block(finding.verification)
 
 
 @app.get("/api/findings/{fid}/disclosure", response_class=PlainTextResponse)
