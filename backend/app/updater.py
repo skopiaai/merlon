@@ -264,6 +264,44 @@ async def update_tool(binary: str) -> SourceResult:
     return result
 
 
+async def update_kev() -> SourceResult:
+    """Refresh CISA's Known Exploited Vulnerabilities catalogue.
+
+    Small, changes weekly, and reorders how every CVE finding gets prioritised —
+    the cheapest high-value thing in this list.
+    """
+    started = time.time()
+    result = SourceResult(name="CISA KEV catalogue", kind="fingerprints")
+
+    from . import kev
+    code, out = await _run(
+        ["curl", "-sS", "-L", "--max-time", "90", kev.KEV_URL], timeout=120)
+    if code != 0 or not out.strip():
+        result.detail = "could not fetch the catalogue"
+        result.seconds = round(time.time() - started, 1)
+        return result
+
+    entries = kev.parse_catalog(out)
+    if not entries:
+        result.detail = "upstream returned something unparseable"
+        return result
+
+    try:
+        kev.KEV_FILE.parent.mkdir(parents=True, exist_ok=True)
+        kev.KEV_FILE.write_text(out)
+    except OSError as exc:
+        result.detail = str(exc)
+        return result
+
+    ransomware = sum(1 for e in entries.values() if e["ransomware"])
+    result.ok = True
+    result.items = len(entries)
+    result.detail = (f"{len(entries)} actively exploited CVEs, "
+                     f"{ransomware} used in ransomware")
+    result.seconds = round(time.time() - started, 1)
+    return result
+
+
 async def update_wordlists() -> SourceResult:
     """Refresh SecLists if it was installed as a git checkout.
 
@@ -319,8 +357,9 @@ async def run_all(*, include_tools: bool = True,
             results += list(await asyncio.gather(
                 *(update_community_repo(name, url) for name, url in COMMUNITY_REPOS)))
 
-        await note("refreshing takeover fingerprints…")
-        results.append(await update_takeover_fingerprints())
+        await note("refreshing takeover fingerprints and the KEV catalogue…")
+        results += list(await asyncio.gather(
+            update_takeover_fingerprints(), update_kev()))
 
         await note("checking wordlists…")
         results.append(await update_wordlists())

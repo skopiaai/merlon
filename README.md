@@ -3,7 +3,7 @@
 **A self-hosted attack surface scanner that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-564%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-624%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Sentinel orchestrates twenty-odd established open-source scanners, normalises
@@ -79,7 +79,25 @@ connects, which makes it an instruction channel into somebody else's model.
 Prompt injection reports rose 540% year on year and almost nothing scans for
 any of this.
 
-**Reporting** — findings mapped to OWASP Top 10, ASVS 4.0, ISO 27001 Annex A,
+**Data left behind** — twenty-five years of archived URLs read for emails,
+tokens, pre-signed storage links and identity numbers carried in the URL
+string itself. Entirely passive; the leak is already public and cannot be
+patched away.
+
+**Post-quantum readiness** — whether TLS negotiates hybrid ML-KEM key
+agreement. Traffic recorded today under classical key exchange is decryptable
+later, so the confidentiality deadline has already passed for anything that
+must stay secret past 2030. Executive Order 14412 sets 31 December 2030 for
+federal systems.
+
+**Client-side supply chain** — scripts loaded from hosts that no longer
+resolve (whoever registers the domain gets JavaScript execution on every
+page), third-party code without Subresource Integrity, and known-vulnerable
+library versions.
+
+**Reporting** — findings cross-referenced against CISA's Known Exploited
+Vulnerabilities catalogue, so a CVE that is being used in the wild outranks a
+higher-scoring one nobody has weaponised; findings mapped to OWASP Top 10, ASVS 4.0, ISO 27001 Annex A,
 CIS v8 and GIGW 3.0; SARIF export; and an audit-grade document with the
 authorization record, methodology, tool versions and evidence hashes.
 

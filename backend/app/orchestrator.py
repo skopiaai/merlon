@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from . import auth as authmod
-from . import compliance, headers, intel, normalize, updater, verify
+from . import compliance, headers, intel, kev, normalize, updater, verify
 from .config import MAX_CONCURRENCY, MAX_CONCURRENT_SCANS, MAX_RATE_LIMIT
 from .db import SessionLocal
 from .engines import extra, registry
@@ -706,9 +706,29 @@ class ScanRunner:
         await hub.publish(self.scan_id, {"type": "assets", "count": len(assets)})
 
     async def _save_finding(self, data: dict) -> bool:
-        compliance.enrich(data)
         """Insert, or bump the occurrence counter if we've seen it. Returns
-        True only for genuinely new findings."""
+        True only for genuinely new findings.
+
+        (This docstring used to sit *below* the first statement, which made it
+        a discarded string expression rather than a docstring — the function
+        had no help text at all.)
+        """
+        compliance.enrich(data)
+
+        # A CVE that is being exploited in the wild outranks a higher-scoring
+        # one that nobody has ever weaponised. CVSS can't express that, because
+        # it scores the vulnerability rather than the threat.
+        exploited = kev.apply(data)
+        if exploited:
+            await self.log(
+                "warn",
+                f"[kev] {data.get('rule_id')} on {data.get('host')} is on CISA's "
+                f"actively-exploited list "
+                f"({', '.join(e['cve'] for e in exploited[:3])})"
+                + (" — used in ransomware campaigns"
+                   if any(e["ransomware"] for e in exploited) else ""),
+                "kev")
+
         with SessionLocal() as db:
             existing = db.scalar(
                 select(Finding).where(

@@ -277,6 +277,43 @@ RULE_MAP: dict[str, Controls] = {
     "llm-unbounded-consumption": Controls(
         "A04:2021 Insecure Design", ["V13.4.1", "V11.1.4"], ["A.8.6"],
         ["13.10"], "AI system security (OWASP LLM10)", ["CWE-770"]),
+    # post-quantum readiness
+    "pqc-not-ready": Controls(
+        "A02:2021 Cryptographic Failures", ["V6.2.1", "V9.1.2"],
+        ["A.8.24", "A.5.31"], ["3.10", "3.11"],
+        "Cryptographic controls (EO 14412 / NIST FIPS 203)", ["CWE-327"]),
+    "pqc-ready": Controls(
+        "A02:2021 Cryptographic Failures", ["V6.2.1"], ["A.8.24"], ["3.10"],
+        "Cryptographic controls (EO 14412 / NIST FIPS 203)", []),
+
+    # client-side supply chain
+    "dangling-script-host": Controls(
+        "A08:2021 Software and Data Integrity Failures",
+        ["V14.2.3", "V1.14.6"], ["A.8.28", "A.5.21"], ["2.3", "16.4"],
+        "Third-party component integrity", ["CWE-1104", "CWE-829"]),
+    "missing-sri": Controls(
+        "A08:2021 Software and Data Integrity Failures", ["V14.2.3"],
+        ["A.8.28"], ["2.3"], "Third-party component integrity",
+        ["CWE-353", "CWE-829"]),
+    "outdated-js-library": Controls(
+        "A06:2021 Vulnerable and Outdated Components", ["V14.2.1"],
+        ["A.8.8"], ["7.1", "2.2"], "Patch management",
+        ["CWE-1104", "CWE-937"]),
+
+    # data left behind in archived URLs
+    "archive-leak-credential": Controls(
+        "A02:2021 Cryptographic Failures", ["V3.5.2", "V8.3.1"],
+        ["A.5.34", "A.8.12"], ["3.3", "6.8"], "Information disclosure",
+        ["CWE-598", "CWE-522"]),
+    "archive-leak-national-id": Controls(
+        "A01:2021 Broken Access Control", ["V8.3.4", "V8.1.1"],
+        ["A.5.34", "A.8.12"], ["3.3"], "Personal data protection",
+        ["CWE-359", "CWE-200"]),
+    "archive-leak-": Controls(
+        "A01:2021 Broken Access Control", ["V8.3.1", "V8.1.1"],
+        ["A.5.34", "A.8.12"], ["3.3"], "Personal data protection",
+        ["CWE-598", "CWE-200"]),
+
     "mcp-tool-poisoning": Controls(
         "A03:2021 Injection", ["V5.1.1", "V13.2.1"], ["A.8.28", "A.5.19"],
         ["16.11", "15.4"], "AI agent security (MCP tool poisoning)",
