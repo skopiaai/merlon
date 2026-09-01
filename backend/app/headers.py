@@ -12,7 +12,6 @@ best practice, with the exact directive to add.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse
 
 from .models import Severity
 from .normalize import make_dedupe_key
@@ -216,8 +215,8 @@ def audit(asset: dict) -> list[dict]:
                 f"The {label} header advertises '{val}'. It doesn't create a vulnerability by "
                 f"itself, but it lets an attacker skip reconnaissance and go straight to exploits "
                 f"matching your exact build.",
-                f"Suppress the version. Nginx: server_tokens off;  Apache: ServerTokens Prod  "
-                f"Express: app.disable('x-powered-by')",
+                "Suppress the version. Nginx: server_tokens off;  Apache: ServerTokens Prod  "
+                "Express: app.disable('x-powered-by')",
                 cwe=["CWE-200"], tags=["disclosure"], evidence=f"{label}: {val}",
             ))
 

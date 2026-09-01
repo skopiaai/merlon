@@ -81,13 +81,62 @@ SPAM_TERMS = [
     "betting site", "online casino", "no deposit bonus", "jackpot slot",
     "live baccarat", "toto site", "gacor", "situs judi",
     # --- Pharmacy spam ---
-    "viagra", "cialis", "levitra", "tadalafil", "sildenafil",
-    "buy pills online", "no prescription", "cheap meds",
-    # --- Counterfeit / piracy / other classic injections ---
-    "replica watches", "essay writing service", "write my essay",
-    "escort service", "porn video", "streaming gratis", "crack download",
-    "free robux", "hack tool", "generator no survey",
+    # The "pharma hack" is the oldest variant and still circulating. Same
+    # entry points and same cloaking as the gambling campaigns; only the
+    # keywords differ.
+    "viagra", "cialis", "levitra", "tadalafil", "sildenafil", "kamagra",
+    "buy pills online", "no prescription", "cheap meds", "canadian pharmacy",
+    "online pharmacy", "buy tramadol", "oxycodone", "ambien", "xanax online",
+    "バイアグラ", "виагра", "сиалис", "دواء",
+
+    # --- Counterfeit luxury goods: the Japanese keyword hack's real payload ---
+    # This variant was the single most frequently detected website malware in
+    # Sucuri's threat reporting — roughly one in ten infected sites. It turns a
+    # legitimate domain into a doorway page for fake Louis Vuitton, Rolex,
+    # Gucci, Nike and Supreme aimed at Japanese-speaking buyers, which is why
+    # the vocabulary is mostly Japanese retail language rather than obscenity.
+    "ブランドコピー", "スーパーコピー", "コピー品", "偽物", "激安", "通販",
+    "n級品", "ルイヴィトン", "ロレックス", "グッチ", "シャネル", "エルメス",
+    "プラダ", "腕時計 コピー", "財布 コピー", "バッグ 激安", "最安値",
+    "送料無料", "正規品", "新作", "人気商品", "口コミ",
+    "명품 레플리카", "레플리카", "이미테이션",
+    "奢侈品", "高仿", "复刻表", "代购",
+    "replica watches", "replica handbags", "fake rolex", "designer replica",
+    "cheap jordans", "wholesale nike", "yeezy replica", "aaa replica",
+
+    # --- Essay mills, piracy, other classic injections ---
+    "essay writing service", "write my essay", "assignment help online",
+    "dissertation writing", "escort service", "porn video",
+    "streaming gratis", "crack download", "nulled script", "keygen serial",
+    "free robux", "hack tool", "generator no survey", "mod apk download",
+    "iptv gratuit", "смотреть онлайн бесплатно",
 ]
+
+# Content the visitor cannot see but a crawler indexes. Research on these
+# campaigns is consistent on this point: the injected block is "frequently
+# invisible to site visitors and administrators", which is precisely why an
+# owner can look at their own page, see nothing wrong, and still be delisted.
+#
+# So this looks for the CSS that hides it rather than for the words alone.
+HIDDEN_STYLE = re.compile(
+    r"display\s*:\s*none"
+    r"|visibility\s*:\s*hidden"
+    r"|font-size\s*:\s*0(?:px|pt|em)?\b"
+    r"|opacity\s*:\s*0(?:\.0+)?\s*[;\"'}]"
+    r"|text-indent\s*:\s*-\s*\d{3,}"
+    r"|(?:left|top|margin-left|margin-top)\s*:\s*-\s*\d{4,}"
+    r"|height\s*:\s*(?:0|1)px\s*;\s*overflow\s*:\s*hidden"
+    r"|clip\s*:\s*rect\(\s*0",
+    re.I)
+
+# An element carrying one of those styles, with its content.
+HIDDEN_BLOCK = re.compile(
+    r"<(div|span|p|ul|ol|section|a)\b[^>]*"
+    r"(?:style\s*=\s*[\"'][^\"']*"
+    r"(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0|"
+    r"text-indent\s*:\s*-\s*\d{3,}|opacity\s*:\s*0)"
+    r"[^\"']*[\"'])[^>]*>(.{0,3000}?)</\1>",
+    re.I | re.S)
 
 # Paths these campaigns plant. Seeing several of these 200-OK on a site is
 # itself strong evidence, independent of content.
@@ -114,6 +163,59 @@ SPAM_DESTINATION = re.compile(
 JS_REDIRECT = re.compile(
     r"(?:window\.)?location(?:\.href)?\s*=\s*[\"']([^\"']+)[\"']"
     r"|location\.replace\(\s*[\"']([^\"']+)[\"']", re.I)
+
+
+def hidden_spam(html: str) -> list[tuple[str, list[str]]]:
+    """Spam inside elements the visitor cannot see.
+
+    Returns (excerpt, matched_terms) for each hidden block that contains spam
+    vocabulary. Hidden text alone is not reported — sites legitimately hide
+    things: screen-reader labels, tab panels, print-only blocks, cookie
+    banners. Hidden text that is *also* selling counterfeit handbags is not
+    ambiguous.
+
+    This catches the case the site owner cannot: they load their own page, see
+    their own content, and have no idea why Google delisted them.
+    """
+    found: list[tuple[str, list[str]]] = []
+    for match in HIDDEN_BLOCK.finditer(html or ""):
+        inner = match.group(2) or ""
+        text = re.sub(r"<[^>]+>", " ", inner)
+        terms = _spam_terms_in(text)
+        if terms:
+            excerpt = " ".join(text.split())[:220]
+            found.append((excerpt, terms))
+    return found
+
+
+def link_stuffing(html: str, threshold: int = 15) -> list[str]:
+    """Off-domain links inside hidden blocks — the point of the injection.
+
+    Doorway pages exist to pass link equity. A hidden block holding a dozen
+    external links is a link farm regardless of what the anchor text says, and
+    counting them separates a genuine injection from a page that happens to use
+    one hidden div.
+    """
+    links: list[str] = []
+    for match in HIDDEN_BLOCK.finditer(html or ""):
+        for href in re.findall(r"href\s*=\s*[\"']([^\"']+)[\"']",
+                               match.group(2) or "", re.I):
+            if href.startswith("http"):
+                links.append(href)
+    return links if len(links) >= threshold else []
+
+
+def spam_in_sitemap(body: str) -> list[str]:
+    """Spam URLs listed in a sitemap.
+
+    A compromised site usually gets a sitemap of its doorway pages, because the
+    attacker needs them indexed and cannot rely on the site linking to them.
+    That makes the sitemap the most reliable single place to see the scale of a
+    compromise: it is the attacker's own inventory of what they planted.
+    """
+    urls = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", body or "", re.I)
+    return [u for u in urls
+            if _spam_terms_in(u) or SPAM_DESTINATION.search(u)][:50]
 
 
 def _has_foreign_script(text: str) -> tuple[bool, str]:
@@ -293,9 +395,9 @@ async def audit_url(url: str, *, log=None) -> list[dict]:
                 "seo-content-differs",
                 f"Page content differs substantially for {persona}",
                 Severity.medium, host, url,
-                f"The response changes noticeably based on the User-Agent or Referer. "
-                f"That can be legitimate (mobile rendering, localisation) but it is "
-                f"also how cloaking works, so it is worth confirming by hand.",
+                "The response changes noticeably based on the User-Agent or Referer. "
+                "That can be legitimate (mobile rendering, localisation) but it is "
+                "also how cloaking works, so it is worth confirming by hand.",
                 "Compare the two responses manually. If the difference isn't explained "
                 "by a deliberate feature, investigate as a possible injection.",
                 evidence=(f"Title as browser:   {t_browser!r}\n"
@@ -351,6 +453,51 @@ async def audit_url(url: str, *, log=None) -> list[dict]:
                     tags=["redirect", "critical-compromise"],
                 ))
                 break
+
+        # ---- hidden injected content ----
+        # Checked on the browser response specifically. This is the variant an
+        # owner cannot see by looking: the spam is in the page they are served,
+        # inside an element CSS has made invisible.
+        if persona == "browser":
+            for excerpt, terms in hidden_spam(body)[:3]:
+                findings.append(_finding(
+                    "seo-hidden-injection",
+                    "Hidden spam content injected into the page",
+                    Severity.critical, host, url,
+                    f"This page contains text that is hidden from visitors by CSS "
+                    f"but is fully visible to search engines, and that hidden text "
+                    f"matches known spam vocabulary "
+                    f"({', '.join(terms[:6])}).\n\n"
+                    f"This is the form of compromise an owner cannot find by "
+                    f"looking at their own site — you load the page, everything "
+                    f"appears normal, and meanwhile the page is ranking for "
+                    f"counterfeit goods or gambling terms. It usually surfaces "
+                    f"only when Google flags the domain or traffic collapses.\n\n"
+                    f"Hidden text on its own is legitimate — screen-reader "
+                    f"labels, tab panels, print styles. Hidden text selling "
+                    f"replica watches is not.",
+                    REMEDIATION,
+                    evidence=f"Hidden block on {url}:\n{excerpt}",
+                    tags=["compromise", "cloaking", "critical-compromise"],
+                ))
+
+            stuffed = link_stuffing(body)
+            if stuffed:
+                findings.append(_finding(
+                    "seo-link-farm",
+                    f"{len(stuffed)} hidden outbound links — doorway page",
+                    Severity.critical, host, url,
+                    f"A block hidden from visitors contains {len(stuffed)} links "
+                    f"to external sites. That is a link farm: the page exists to "
+                    f"pass your domain's reputation to the attacker's sites.\n\n"
+                    f"The damage here is to the domain itself. Search engines "
+                    f"penalise the host of the links, so the cost lands on you "
+                    f"rather than on whoever planted them.",
+                    REMEDIATION,
+                    evidence="Hidden outbound links:\n"
+                             + "\n".join(f"  {u}" for u in stuffed[:12]),
+                    tags=["compromise", "cloaking", "critical-compromise"],
+                ))
 
         for m in JS_REDIRECT.finditer(body or ""):
             dest = m.group(1) or m.group(2) or ""

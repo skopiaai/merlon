@@ -145,9 +145,6 @@ RULE_MAP: dict[str, Controls] = {
     "zone-transfer": Controls(
         "A01:2021 Broken Access Control", [], ["A.8.20"], ["4.9"],
         "DNS security", ["CWE-200"]),
-    "dangling-cname": Controls(
-        "A05:2021 Security Misconfiguration", [], ["A.8.20"], ["4.9"],
-        "DNS security", ["CWE-350"]),
 
     # compromise / SEO spam
     "seo-cloaking": Controls(
@@ -162,6 +159,13 @@ RULE_MAP: dict[str, Controls] = {
     "js-spam-redirect": Controls(
         "A08:2021 Software and Data Integrity Failures", ["V5.1.5"],
         ["A.8.7"], ["10.1"], "Website integrity", ["CWE-601"]),
+    "seo-hidden-injection": Controls(
+        "A08:2021 Software and Data Integrity Failures", ["V14.2.1", "V5.3.3"],
+        ["A.8.7", "A.8.32"], ["10.1", "4.1"], "Website integrity",
+        ["CWE-506", "CWE-79"]),
+    "seo-link-farm": Controls(
+        "A08:2021 Software and Data Integrity Failures", ["V14.2.1"],
+        ["A.8.7", "A.8.32"], ["10.1"], "Website integrity", ["CWE-506"]),
     "unexpected-language": Controls(
         "A08:2021 Software and Data Integrity Failures", [], ["A.8.32"],
         ["10.1"], "Website integrity", []),
@@ -273,6 +277,14 @@ RULE_MAP: dict[str, Controls] = {
     "llm-unbounded-consumption": Controls(
         "A04:2021 Insecure Design", ["V13.4.1", "V11.1.4"], ["A.8.6"],
         ["13.10"], "AI system security (OWASP LLM10)", ["CWE-770"]),
+    "mcp-tool-poisoning": Controls(
+        "A03:2021 Injection", ["V5.1.1", "V13.2.1"], ["A.8.28", "A.5.19"],
+        ["16.11", "15.4"], "AI agent security (MCP tool poisoning)",
+        ["CWE-77", "CWE-1427"]),
+    "mcp-server-exposed": Controls(
+        "A01:2021 Broken Access Control", ["V4.1.1", "V13.2.1"],
+        ["A.8.3", "A.5.19"], ["3.3", "15.4"], "AI agent security",
+        ["CWE-306", "CWE-284"]),
     "llm-": Controls(
         "A04:2021 Insecure Design", ["V5.1.1"], ["A.8.26"], ["16.11"],
         "AI system security", ["CWE-1427"]),

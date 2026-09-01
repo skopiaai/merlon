@@ -81,7 +81,12 @@ def correlate(scan_id: int) -> list[dict]:
         names = {f.name.lower() for f in hf}
         url = next((f.url for f in hf if f.url), host)
 
-        def has(*needles: str) -> bool:
+        # Loop variables bound as defaults. `has` is called inside this
+        # iteration, so nothing is wrong today — but a closure that reads a
+        # loop variable by reference is a correctness bug waiting for someone
+        # to defer the call, and correlation silently attributing one host's
+        # findings to another would be very hard to notice in a report.
+        def has(*needles: str, rule_ids=rule_ids, names=names, tags=tags) -> bool:
             blob = " ".join(rule_ids | names | tags)
             return all(n in blob for n in needles)
 

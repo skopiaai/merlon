@@ -79,9 +79,14 @@ export interface Finding {
   cwe: string[];
   occurrences: number;
   status: FindingStatus;
+  /** The local LLM's opinion. Commentary — deliberately not the gate. */
   triage_confidence: number | null;
   triage_note: string;
   analyst_note: string;
+  /** Computed from whether the finding actually reproduces. This is the gate. */
+  verify_confidence: number | null;
+  reproduced: boolean;
+  verified_at: string | null;
 }
 
 /** Thrown when the backend can't be reached at all (vs. returning an error). */

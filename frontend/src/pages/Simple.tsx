@@ -116,6 +116,69 @@ function Freshness() {
   );
 }
 
+/* --------------------------- surface changes --------------------------- */
+
+/**
+ * What appeared since the last scan of this engagement.
+ *
+ * Shown above the previous-runs list because it's the one thing on this screen
+ * that's time-sensitive. A host that went live this morning has not been
+ * scanned by anyone — every other researcher's last run predates it — and that
+ * window closes quickly.
+ */
+function Changes({ engagementId }: { engagementId: number }) {
+  const diff = useQuery({
+    queryKey: ["diff", engagementId],
+    queryFn: () => api.engagementDiff(engagementId),
+    staleTime: 60_000,
+  });
+
+  const d = diff.data;
+  if (!d?.available || !d.interesting) return null;
+
+  return (
+    <div className="changes">
+      <h3>Since your last scan</h3>
+
+      {d.counts.new_hosts > 0 && (
+        <div>
+          <strong>{d.counts.new_hosts} new host{d.counts.new_hosts === 1 ? "" : "s"}</strong> —
+          unscanned by you, and probably by anyone else:
+          <ul>
+            {d.new_hosts.slice(0, 6).map((h) => (
+              <li key={h}><span className="new">{h}</span></li>
+            ))}
+            {d.new_hosts.length > 6 && <li className="muted">+{d.new_hosts.length - 6} more</li>}
+          </ul>
+        </div>
+      )}
+
+      {d.counts.changed > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <strong>{d.counts.changed} changed</strong>
+          <ul>
+            {d.changed.slice(0, 4).map((c) => (
+              <li key={c.host}><span className="new">{c.host}</span> — {c.why}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {d.counts.gone_hosts > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <strong>{d.counts.gone_hosts} stopped responding</strong> — check whether the
+          DNS record still exists; a name pointing at a dead service is how takeovers start.
+          <ul>
+            {d.gone_hosts.slice(0, 4).map((h) => (
+              <li key={h}><span className="gone">{h}</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------ home ------------------------------ */
 
 function Home({ onStart }: { onStart: (id: number) => void }) {
@@ -200,6 +263,10 @@ function Home({ onStart }: { onStart: (id: number) => void }) {
       </div>
 
       {err && <div className="error">{err}</div>}
+
+      {!!recent.data?.length && recent.data[0].engagement_id && (
+        <Changes engagementId={recent.data[0].engagement_id} />
+      )}
 
       {!!recent.data?.length && (
         <div className="history">

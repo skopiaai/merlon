@@ -3,7 +3,7 @@
 **A self-hosted attack surface scanner that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-525%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-564%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Sentinel orchestrates twenty-odd established open-source scanners, normalises
@@ -53,18 +53,31 @@ what each can reach and reports endpoints that need no session at all, and
 records one user can read that belong to another. This is the bug class that
 pays most, and it's absent from scanners that hold a single session.
 
-**Site compromise** — SEO spam and cloaking detection, for the class of attack
-where a legitimate site serves gambling content to Googlebot and the real page
-to everyone else.
+**Site compromise** — SEO spam and cloaking across 14 languages, covering the
+gambling, pharma and counterfeit-goods campaigns. The Japanese keyword hack
+(fake luxury goods aimed at Japanese buyers) has been the single most
+frequently detected website malware, on roughly one in ten infected sites.
+
+The variant worth calling out is **hidden injection**: spam inside a
+`display:none` block, invisible to the owner loading their own page and fully
+visible to the crawler indexing it. That's why the honest answer from a site
+owner is usually "I looked and there's nothing there" — they're right, and
+they're still delisted. Hidden text alone is never reported (screen-reader
+labels and tab panels are legitimate); hidden text *selling replica watches*
+is not ambiguous.
 
 **Origin servers behind a CDN** — hosts reachable directly despite sitting
 behind Cloudflare or similar, found via DNS history, mail records, un-proxied
 subdomains and certificate data. Confirmed by asking the candidate address for
 the target's `Host` and checking it serves the target's site.
 
-**AI assistants** — LLM-backed endpoints tested for prompt injection, system
-prompt leakage and unbounded consumption (OWASP LLM01/07/10). Prompt injection
-reports rose 540% year on year and almost nothing scans for them.
+**AI assistants and agents** — LLM-backed endpoints tested for prompt
+injection, system prompt leakage and unbounded consumption (OWASP LLM01/07/10).
+Plus exposed **MCP servers** and **tool poisoning**: a Model Context Protocol
+tool description is inserted straight into the context of every agent that
+connects, which makes it an instruction channel into somebody else's model.
+Prompt injection reports rose 540% year on year and almost nothing scans for
+any of this.
 
 **Reporting** — findings mapped to OWASP Top 10, ASVS 4.0, ISO 27001 Annex A,
 CIS v8 and GIGW 3.0; SARIF export; and an audit-grade document with the
@@ -294,6 +307,7 @@ open-source recon frameworks — and the gaps they exposed have been closed.
 | ASN / netblock expansion | ✗ | ✓ | ✓ | ✓ |
 | Origin IP discovery behind a CDN | ✗ | partial | ✓ | ✓ |
 | **AI/LLM application testing** | ✗ | ✗ | ✗ | ✓ |
+| **MCP server / tool poisoning detection** | ✗ | ✗ | ✗ | ✓ |
 | **Independent re-verification + submission gate** | ✗ | ✗ | ✗ | ✓ |
 | Continuous monitoring / asset diffing | ✓ | ✗ | ✗ | ✓ |
 | Screenshot gallery | ✓ | – | ✓ | ✗ |

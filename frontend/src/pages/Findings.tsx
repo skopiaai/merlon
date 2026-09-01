@@ -28,8 +28,10 @@ export default function Findings() {
     <>
       <h2>Findings</h2>
       <p className="subtitle">
-        Sorted by severity, then triage confidence. Anything the model flagged as needing a human
-        sits at the top of its band.
+        Two confidence numbers, and they mean different things. <strong>Verified</strong>
+        is computed from whether the finding actually reproduces on retest.
+        <strong> Triage</strong> is the local model's opinion of it. Only the first
+        one decides whether something is worth filing.
       </p>
 
       <div className="card">
@@ -70,7 +72,8 @@ export default function Findings() {
                 <th>Finding</th>
                 <th>Host</th>
                 <th style={{ width: 110 }}>Status</th>
-                <th style={{ width: 90 }}>Confidence</th>
+                <th style={{ width: 92 }}>Verified</th>
+                <th style={{ width: 84 }}>Triage</th>
               </tr>
             </thead>
             <tbody>
@@ -93,6 +96,19 @@ export default function Findings() {
                     {f.url || f.host}
                   </td>
                   <td className="muted">{f.status.replace(/_/g, " ")}</td>
+                  <td>
+                    {f.verify_confidence === null || f.verify_confidence === undefined ? (
+                      <span className="muted">—</span>
+                    ) : !f.reproduced ? (
+                      <span className="conf bad" title="Did not reproduce on retest">
+                        failed
+                      </span>
+                    ) : (
+                      <span className={`conf ${f.verify_confidence >= 0.75 ? "good" : "warn"}`}>
+                        {Math.round(f.verify_confidence * 100)}%
+                      </span>
+                    )}
+                  </td>
                   <td className="muted">
                     {f.triage_confidence !== null ? `${Math.round(f.triage_confidence * 100)}%` : "—"}
                   </td>

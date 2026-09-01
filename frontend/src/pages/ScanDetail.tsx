@@ -51,10 +51,31 @@ export default function ScanDetail({ id, onBack }: { id: number; onBack: () => v
 
   const s = scan.data;
   const visible = lines.filter((l) => showDebug || l.level !== "debug");
-  const bySeverity = (findings.data ?? []).reduce<Record<string, number>>((acc, f) => {
+  const all = findings.data ?? [];
+  const bySeverity = all.reduce<Record<string, number>>((acc, f) => {
     acc[f.severity] = (acc[f.severity] ?? 0) + 1;
     return acc;
   }, {});
+
+  // Verification state, computed from the findings already loaded rather than
+  // by fetching the queue — this banner appears while a scan is still running
+  // and shouldn't add a request on every poll.
+  const verified = all.reduce(
+    (acc, f) => {
+      if (f.verify_confidence === null || f.verify_confidence === undefined) {
+        acc.unverified += 1;
+      } else if (!f.reproduced) {
+        acc.failed += 1;
+      } else if (f.verify_confidence >= 0.75) {
+        acc.ready += 1;
+      } else {
+        acc.review += 1;
+      }
+      acc.total += 1;
+      return acc;
+    },
+    { ready: 0, review: 0, failed: 0, unverified: 0, total: 0 }
+  );
 
   // The queue is a full view rather than a panel: deciding what to file is a
   // different job from watching a scan run, and mixing them means reading past
@@ -121,6 +142,33 @@ export default function ScanDetail({ id, onBack }: { id: number; onBack: () => v
         </div>
         <div className="progress"><div style={{ width: `${(s?.progress ?? 0) * 100}%` }} /></div>
       </div>
+
+      {/* What survived verification, shown before the severity counts.
+          Severity is what a finding claims about itself; reproducibility is
+          what it can prove — and the second number is the one that decides
+          whether any of this is worth filing. */}
+      {verified.total > 0 && (
+        <div className={`verdict ${verified.ready > 0 ? "has-ready" : ""}`}>
+          <div className="verdict-main">
+            <div className="verdict-num">{verified.ready}</div>
+            <div>
+              <strong>
+                {verified.ready === 0
+                  ? "Nothing is ready to submit yet"
+                  : `${verified.ready} finding${verified.ready === 1 ? "" : "s"} reproduce with evidence`}
+              </strong>
+              <div className="muted">
+                of {verified.total} verified
+                {verified.failed > 0 && <> · {verified.failed} did not reproduce on retest</>}
+                {verified.unverified > 0 && <> · {verified.unverified} still unverified</>}
+              </div>
+            </div>
+          </div>
+          <button className="btn sm" onClick={() => setShowQueue(true)}>
+            Open queue
+          </button>
+        </div>
+      )}
 
       <div className="card">
         <h3>Results</h3>

@@ -22,7 +22,6 @@ another organisation's site sharing the same shared-hosting IP.
 from __future__ import annotations
 
 import asyncio
-from urllib.parse import urlparse
 
 from ..models import Severity
 from ..normalize import make_dedupe_key
@@ -119,7 +118,8 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
 
         base_status, base_len = base.status, len(base.body)
 
-        async def probe(name: str):
+        async def probe(name: str, apex=apex, scheme=scheme, ip=ip,
+                        base_status=base_status, base_len=base_len):
             vhost = f"{name}.{apex}"
             resp = await fetch.request(f"{scheme}://{ip}/",
                                        headers={"Host": vhost}, timeout=10, ctx=ctx)

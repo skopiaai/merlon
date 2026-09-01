@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from . import llm
 from .db import SessionLocal
-from .models import Engagement, Finding, FindingStatus, Scan, Severity
+from .models import Engagement, Finding, FindingStatus, Scan
 
 SEV_ORDER = ["critical", "high", "medium", "low", "info"]
 
@@ -168,7 +168,7 @@ async def disclosure_report(finding_id: int) -> str:
         return drafted + "\n\n---\n*Draft generated locally. Verify every claim before submitting.*"
 
     return "\n".join([
-        f"## Summary", "", data["name"], "",
+        "## Summary", "", data["name"], "",
         "## Affected Asset", "", f"`{data['url']}`", "",
         "## Description", "", data["description"] or "_(fill in)_", "",
         "## Impact", "", "_(fill in)_", "",

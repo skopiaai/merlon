@@ -248,7 +248,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     for origin in fetch.origins(targets)[:6]:
         host = (urlparse(origin).hostname or "").lower()
 
-        async def probe(path: str):
+        async def probe(path: str, origin=origin, host=host):
             url = urljoin(origin, path)
             # A GET first: chat endpoints usually reject it, but the rejection
             # itself often names the framework.

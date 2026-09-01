@@ -21,7 +21,7 @@ from sqlalchemy import select
 
 from . import compliance
 from .db import SessionLocal
-from .models import Asset, Engagement, Finding, FindingStatus, Lead, Scan, Severity
+from .models import Asset, Engagement, Finding, FindingStatus, Lead, Scan
 
 SEV_ORDER = ["critical", "high", "medium", "low", "info"]
 

@@ -102,11 +102,11 @@ def scan_text(text: str, host: str, url: str) -> list[dict]:
                 f"Anything in a bundle is public — minification is not protection. "
                 f"If this credential is live, treat it as already compromised: "
                 f"bundles are archived by crawlers and cached by browsers.",
-                f"Revoke and rotate this credential now, then move it server-side. "
-                f"If the frontend genuinely needs to call that service, proxy the "
-                f"call through your backend so the secret never reaches the browser. "
-                f"Afterwards, add secret scanning to CI so the next one is caught "
-                f"before it ships.",
+                "Revoke and rotate this credential now, then move it server-side. "
+                "If the frontend genuinely needs to call that service, proxy the "
+                "call through your backend so the secret never reaches the browser. "
+                "Afterwards, add secret scanning to CI so the next one is caught "
+                "before it ships.",
                 f"Matched in {url}\nValue (redacted): {redacted}",
                 cwe=["CWE-798", "CWE-200"],
             ))

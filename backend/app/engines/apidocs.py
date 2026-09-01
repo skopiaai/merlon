@@ -152,7 +152,7 @@ async def _apidocs(targets: list[str], ctx: dict) -> list[dict]:
         host = (urlparse(origin).hostname or "").lower()
 
         # --- debug endpoints ---
-        async def debug(entry):
+        async def debug(entry, origin=origin):
             path, sev, what = entry
             resp = await fetch.request(urljoin(origin, path), timeout=10, ctx=ctx)
             if resp.status != 200 or len(resp.body) < 20:
@@ -203,7 +203,7 @@ async def _apidocs(targets: list[str], ctx: dict) -> list[dict]:
             })
 
         # --- API specifications ---
-        async def spec(path):
+        async def spec(path, origin=origin):
             resp = await fetch.request(urljoin(origin, path), timeout=12, ctx=ctx)
             return path, resp
 
@@ -244,7 +244,7 @@ async def _apidocs(targets: list[str], ctx: dict) -> list[dict]:
             })
 
         # --- GraphQL introspection ---
-        async def gql(path):
+        async def gql(path, origin=origin):
             url = urljoin(origin, path)
             resp = await fetch.request(
                 url, method="POST", data=INTROSPECTION,

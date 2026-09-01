@@ -194,7 +194,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
             urljoin(origin, "/zzz-does-not-exist-9182736455"), timeout=10, ctx=ctx)
         catch_all = control.status == 200
 
-        async def probe(path: str):
+        async def probe(path: str, origin=origin):
             resp = await fetch.request(urljoin(origin, path), timeout=10, ctx=ctx)
             return path, resp
 
@@ -223,7 +223,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
                        "fetched it, and files like this are collected "
                        "automatically at internet scale.\n\n"
                        if sev is Severity.critical else "")
-                    + f"Confirmed by content, not by status code"
+                    + "Confirmed by content, not by status code"
                     + (" — note this host returns 200 for paths that don't exist, "
                        "so status alone would have proved nothing." if catch_all
                        else ".")),

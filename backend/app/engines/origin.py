@@ -291,7 +291,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
                       f"candidate origin address(es) to confirm", "origin")
 
         # --- confirm ---
-        async def confirm(ip: str, why: str):
+        async def confirm(ip: str, why: str, host=host, reference=reference):
             for scheme in ("https", "http"):
                 resp = await fetch.request(
                     f"{scheme}://{ip}/", headers={"Host": host},
