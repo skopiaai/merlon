@@ -21,6 +21,10 @@ export interface QueueEntry {
   verified_at: string | null;
   reasons: string[];
   why?: string;
+  /** False when this finding appeared in an earlier scan of the same engagement. */
+  is_new: boolean;
+  first_seen?: string;
+  previously?: string;
 }
 
 /** One account the scanner can act as. Two of these enable IDOR detection. */
@@ -216,7 +220,8 @@ export const api = {
     needs_review: QueueEntry[];
     did_not_reproduce: QueueEntry[];
     counts: { ready: number; needs_review: number;
-              did_not_reproduce: number; total: number };
+              did_not_reproduce: number; total: number;
+              new: number; seen_before: number };
   }>(`/api/scans/${scanId}/queue`),
 
   verifyFinding: (id: number) => req<{
@@ -238,6 +243,16 @@ export const api = {
     counts: { new_hosts: number; gone_hosts: number;
               new_urls: number; changed: number };
   }>(`/api/engagements/${eid}/diff`),
+
+  // Parses only — creating the engagement stays a separate, deliberate step.
+  parseScope: (text: string) => req<{
+    allow: string[];
+    deny: string[];
+    unscannable: { asset: string; kind: string }[];
+    ignored: string[];
+    counts: { allow: number; deny: number; unscannable: number };
+    summary: string;
+  }>("/api/scope/parse", { method: "POST", body: JSON.stringify({ text }) }),
 
   rescan: (eid: number) =>
     req<Scan>(`/api/engagements/${eid}/rescan`, { method: "POST" }),

@@ -116,6 +116,17 @@ export default function Engagements() {
             </div>
           </div>
 
+          <ScopePaste
+            onParsed={(allow, deny) =>
+              setForm((f) => ({
+                ...f,
+                allow_rules: [...splitRules(f.allow_rules), ...allow]
+                  .filter((v, i, a) => a.indexOf(v) === i).join("\n"),
+                deny_rules: [...splitRules(f.deny_rules), ...deny]
+                  .filter((v, i, a) => a.indexOf(v) === i).join("\n"),
+              }))}
+          />
+
           <div className="row">
             <div className="field">
               <label>
@@ -194,5 +205,72 @@ export default function Engagements() {
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Paste a bug bounty program's scope table and turn it into rules.
+ *
+ * Pasted rather than fetched from a program URL. Scope is the one piece of
+ * configuration in this tool where being wrong is a legal problem rather than
+ * a bug, and deriving it from a regex over someone else's markup would make an
+ * authorization decision automatically. The parse fills the fields below; you
+ * still read them against the program page and press Create. That step is the
+ * point, not friction to remove.
+ */
+function ScopePaste({ onParsed }: {
+  onParsed: (allow: string[], deny: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+
+  const parse = useMutation({
+    mutationFn: () => api.parseScope(text),
+    onSuccess: (r) => onParsed(r.allow, r.deny),
+  });
+
+  const result = parse.data;
+
+  if (!open) {
+    return (
+      <button type="button" className="btn ghost sm" style={{ marginBottom: 14 }}
+        onClick={() => setOpen(true)}>
+        Paste a program scope table
+      </button>
+    );
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <h3 style={{ marginTop: 0 }}>Import scope</h3>
+      <p className="subtitle" style={{ marginTop: 0 }}>
+        Copy both the in-scope and out-of-scope tables from the program page and
+        paste them here. Exclusions win over wildcards, and asset types this tool
+        can't test (mobile apps, source repos) are named rather than dropped.
+      </p>
+
+      <div className="field">
+        <textarea rows={8} value={text} spellCheck={false}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={"In scope\n*.example.com\napi.example.com\n\nOut of scope\nlegacy.example.com"} />
+      </div>
+
+      <div className="row" style={{ gap: 10 }}>
+        <button type="button" className="btn sm"
+          disabled={!text.trim() || parse.isPending}
+          onClick={() => parse.mutate()}>
+          {parse.isPending ? "Parsing…" : "Parse"}
+        </button>
+        <button type="button" className="btn ghost sm" onClick={() => setOpen(false)}>
+          Close
+        </button>
+      </div>
+
+      {result && (
+        <div className="note" style={{ marginTop: 14, whiteSpace: "pre-wrap" }}>
+          {result.summary}
+        </div>
+      )}
+    </div>
   );
 }

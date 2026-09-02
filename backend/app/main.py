@@ -37,6 +37,7 @@ from . import (
     sarif,
     schemas,
     scope,
+    scopeimport,
     updater,
     verify,
     watch,
@@ -744,6 +745,23 @@ async def verify_engagement_auth(eid: int, db: Session = Depends(get_db)):
     }
 
 
+@app.post("/api/scope/parse")
+def parse_scope(payload: schemas.ScopeImport):
+    """Turn a pasted program scope table into allow and deny rules.
+
+    Parses only — it does not create anything. The operator reads the result
+    against the program page and then creates the engagement, because scope is
+    the one piece of configuration where being wrong is a legal problem rather
+    than a bug.
+
+    Note there is deliberately no "fetch this program URL and parse it" here.
+    Deriving an authorization decision from a regex over someone else's markup
+    is not a shortcut worth taking.
+    """
+    parsed = scopeimport.parse(payload.text)
+    return {**parsed.as_dict(), "summary": scopeimport.summarise(parsed)}
+
+
 @app.get("/api/engagements/{eid}/diff")
 def engagement_diff(eid: int, db: Session = Depends(get_db)):
     """What changed in this engagement's attack surface since the last scan.
@@ -807,12 +825,19 @@ def submission_queue(sid: int, db: Session = Depends(get_db)):
         select(Finding).where(Finding.scan_id == sid)
         .order_by(Finding.severity.desc(), Finding.verify_confidence.desc())))
 
+    # Which of these you have already seen in an earlier scan of the same
+    # engagement. A weekly scan reports the same thirty findings every week;
+    # without this the two that are actually new are buried in twenty-eight
+    # you already read.
+    history = watch.previously_seen(sid)
+
     ready, review, failed = [], [], []
     for f in findings:
         entry = {
             "id": f.id, "name": f.name, "severity": f.severity,
             "host": f.host, "url": f.url, "engine": f.engine,
             "rule_id": f.rule_id, "status": f.status,
+            "dedupe_key": f.dedupe_key,
             "confidence": f.verify_confidence,
             "reproduced": f.reproduced,
             "verified_at": f.verified_at,
@@ -828,13 +853,18 @@ def submission_queue(sid: int, db: Session = Depends(get_db)):
             review.append({**entry, "why": "reproduced, but evidence is not "
                                            "strong enough to submit unreviewed"})
 
+    for bucket in (ready, review, failed):
+        watch.annotate_new(bucket, history)
+
     return {
         "threshold": verify.SUBMIT_THRESHOLD,
         "ready": ready,
         "needs_review": review,
         "did_not_reproduce": failed,
         "counts": {"ready": len(ready), "needs_review": len(review),
-                   "did_not_reproduce": len(failed), "total": len(findings)},
+                   "did_not_reproduce": len(failed), "total": len(findings),
+                   "new": sum(1 for f in ready if f.get("is_new")),
+                   "seen_before": len(history)},
     }
 
 

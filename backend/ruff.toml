@@ -16,6 +16,7 @@ ignore = [
     "SIM102",  # nested ifs here carry a comment explaining each condition
     "SIM103",  # `return not X` reads worse than an explicit if/return
     "SIM110",  # an explicit loop is clearer than any() with a compound condition
+    "SIM108",  # a ternary spanning 90 characters is not an improvement
 ]
 
 [lint.per-file-ignores]

@@ -146,7 +146,20 @@ def test_model_severity_is_capped_at_medium():
     client code. Letting a model hand out criticals for reading a bundle is how
     a tool stops being trusted."""
     assert severity_of({"severity": "high"}) is Severity.medium
-    assert severity_of({"severity": "critical"}) is Severity.low  # unknown → low
+    assert severity_of({"severity": "critical"}) is Severity.medium
+
+
+def test_the_cap_never_ranks_a_worse_claim_lower():
+    """Regression guard for a real defect. The cap was a lookup table that
+    omitted "critical", so a model saying "critical" fell through to the
+    default and came out *below* a model saying "low" — the ordering inverted
+    at the top end. A ceiling has to be a comparison, not an enumeration of
+    the values someone remembered to list."""
+    order = ["info", "low", "medium", "high", "critical"]
+    results = [severity_of({"severity": s}) for s in order]
+    ranks = [order.index(r.value) for r in results]
+    assert ranks == sorted(ranks), \
+        f"a more severe claim was ranked lower: {list(zip(order, results, strict=True))}"
 
 
 def test_lower_severities_pass_through():
@@ -154,8 +167,15 @@ def test_lower_severities_pass_through():
     assert severity_of({"severity": "info"}) is Severity.info
 
 
-def test_missing_severity_defaults_low():
+def test_missing_or_unrecognised_severity_defaults_low():
     assert severity_of({}) is Severity.low
+    assert severity_of({"severity": "catastrophic"}) is Severity.low
+    assert severity_of({"severity": ""}) is Severity.low
+
+
+def test_severity_is_case_insensitive():
+    assert severity_of({"severity": "HIGH"}) is Severity.medium
+    assert severity_of({"severity": " Low "}) is Severity.low
 
 
 # ================================================ containing the whole engine

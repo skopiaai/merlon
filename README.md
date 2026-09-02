@@ -3,7 +3,7 @@
 **A self-hosted attack surface scanner that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-646%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-697%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Sentinel orchestrates twenty-odd established open-source scanners, normalises
@@ -136,7 +136,13 @@ Scans hang off *engagements*, and an engagement requires a recorded
 authorization: who granted permission, and a reference to the proof. That's
 deliberate friction.
 
-- **Bug bounty:** the program's scope page is your authorization. Paste the URL.
+- **Bug bounty:** the program's scope page is your authorization. Paste the URL,
+  and paste the scope table itself into **Import scope** — it turns the table
+  into allow and deny rules, applies exclusions over wildcards, and names the
+  asset types this tool can't cover so you don't assume the program is fully
+  scanned. It parses; you confirm it against the page and press Create. Testing
+  an excluded host is the most common way researchers get removed from
+  programs, and it's nearly always a transcription error.
 - **Your college or employer:** get an email from whoever owns the system before
   you scan it. Students have been expelled and prosecuted over scans they
   believed were helpful. One paragraph and a reply is enough — get it first.

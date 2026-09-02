@@ -46,6 +46,13 @@ export default function Queue({ scanId }: { scanId: number }) {
           </span>
         </td>
         <td>
+          {f.is_new === false ? (
+            <span className="seen" title={`First seen ${f.first_seen?.slice(0, 10)}`}>
+              seen before
+            </span>
+          ) : (
+            <span className="fresh">new</span>
+          )}{" "}
           {f.name}
           <div className="muted mono" style={{ fontSize: 10.5 }}>{f.host}</div>
         </td>
@@ -118,6 +125,11 @@ export default function Queue({ scanId }: { scanId: number }) {
         scan: fetched again, fetched a second time to rule out a fluke, and
         compared against a control request. A critical that doesn't reproduce
         costs you more to file than it's worth.
+        {q.counts.seen_before > 0 && (
+          <> Findings marked <span className="seen">seen before</span> appeared in
+          an earlier scan of this engagement — you have already read and decided
+          about them.</>
+        )}
       </p>
 
       <div className="stat-grid" style={{ marginBottom: 18 }}>
@@ -132,6 +144,10 @@ export default function Queue({ scanId }: { scanId: number }) {
         <div className="stat">
           <div className="v" style={{ color: "var(--crit)" }}>{q.counts.did_not_reproduce}</div>
           <div className="k">did not reproduce</div>
+        </div>
+        <div className="stat">
+          <div className="v" style={{ color: "var(--neon)" }}>{q.counts.new}</div>
+          <div className="k">new since last scan</div>
         </div>
         <div className="stat">
           <div className="v">{Math.round(q.threshold * 100)}%</div>

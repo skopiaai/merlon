@@ -168,6 +168,17 @@ class ScopeCheckRequest(BaseModel):
     hosts: list[str]
 
 
+class ScopeImport(BaseModel):
+    """A pasted bug bounty program scope table.
+
+    Text rather than a URL, on purpose. Fetching a program page and building
+    scope from parsed HTML would make an authorization decision on the basis of
+    someone else's markup — see app/scopeimport.py.
+    """
+    text: str = Field(min_length=1, max_length=200_000,
+                      description="Paste the in-scope and out-of-scope tables")
+
+
 class AuthConfig(BaseModel):
     """Credentials for authenticated scanning.
 

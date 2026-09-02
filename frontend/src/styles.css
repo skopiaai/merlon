@@ -706,6 +706,16 @@ details.rawlog pre {
 .verdict strong { display: block; font-size: 13px; color: var(--ink); }
 .verdict .muted { font-size: 11.5px; margin-top: 3px; }
 
+/* ---------- new vs already-seen findings ---------- */
+
+.fresh, .seen {
+  display: inline-block; font-family: var(--font-mono); font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.07em; padding: 1px 5px;
+  border-radius: 3px; vertical-align: 1px;
+}
+.fresh { background: var(--accent-soft); color: var(--neon); border: 1px solid var(--neon); }
+.seen { background: transparent; color: var(--ink-3); border: 1px solid var(--line); }
+
 /* ---------- attack surface changes ---------- */
 
 .changes {

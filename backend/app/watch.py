@@ -223,6 +223,68 @@ def summarise(result: Diff) -> str:
     return "\n\n".join(parts)
 
 
+def previously_seen(scan_id: int) -> dict[str, dict]:
+    """dedupe_key -> when this finding first appeared in an earlier scan.
+
+    A scanner run weekly reports the same thirty findings every week. Without
+    this, the submission queue looks identical each time and the two entries
+    that are actually new are buried in twenty-eight you already read and
+    decided about.
+
+    Only earlier scans of the *same engagement* count. The same rule firing on
+    a different target is a different finding, and treating it as a duplicate
+    would hide real work.
+    """
+    from .models import Finding
+
+    with SessionLocal() as db:
+        scan = db.get(Scan, scan_id)
+        if not scan:
+            return {}
+
+        earlier = list(db.scalars(
+            select(Scan).where(
+                Scan.engagement_id == scan.engagement_id,
+                Scan.id != scan_id,
+                Scan.created_at < scan.created_at,
+            )))
+        if not earlier:
+            return {}
+
+        history: dict[str, dict] = {}
+        for previous in sorted(earlier, key=lambda s: s.created_at):
+            for finding in db.scalars(
+                    select(Finding).where(Finding.scan_id == previous.id)):
+                # Keep the *earliest* sighting: "first seen three months ago"
+                # is the useful fact, not "seen again yesterday".
+                history.setdefault(finding.dedupe_key, {
+                    "first_seen": (previous.finished_at
+                                   or previous.created_at).isoformat(),
+                    "scan_id": previous.id,
+                    "status": finding.status.value,
+                    "name": finding.name,
+                })
+        return history
+
+
+def annotate_new(entries: list[dict], history: dict[str, dict]) -> list[dict]:
+    """Mark queue entries as new or previously seen. Pure, so it is testable.
+
+    Entries keep their order — this adds context, it does not re-sort. Whether
+    something is new matters, but it matters less than whether it reproduces,
+    and the queue's ordering already encodes that priority.
+    """
+    for entry in entries:
+        seen = history.get(entry.get("dedupe_key", ""))
+        if seen:
+            entry["first_seen"] = seen["first_seen"]
+            entry["previously"] = seen["status"]
+            entry["is_new"] = False
+        else:
+            entry["is_new"] = True
+    return entries
+
+
 def watch_targets() -> list[dict]:
     """Engagements worth re-scanning, with when they were last looked at.
 

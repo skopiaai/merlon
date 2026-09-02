@@ -197,18 +197,30 @@ def usable_claims(response: dict | None, source: str) -> tuple[list[dict], int]:
     return kept, rejected
 
 
-def severity_of(claim: dict) -> Severity:
-    """Model-suggested severity, capped.
+# Medium is the ceiling. Everything this engine produces is a hypothesis about
+# server-side behaviour inferred from client-side code, and no such hypothesis
+# is a high-severity finding until someone has tested the server.
+SEVERITY_CEILING = Severity.medium
 
-    Capped at medium on purpose. Everything here is a hypothesis about
-    server-side behaviour inferred from client-side code, and no such
-    hypothesis is a high-severity finding until someone has tested the server.
-    Letting a model hand out criticals for reading a bundle is how a tool stops
-    being trusted.
+_LADDER = [Severity.info, Severity.low, Severity.medium,
+           Severity.high, Severity.critical]
+
+
+def severity_of(claim: dict) -> Severity:
+    """Model-suggested severity, clamped to the ceiling.
+
+    Clamped rather than looked up. The earlier version used a lookup table that
+    happened to omit "critical", so a model saying "critical" fell through to
+    the default and came out as *low* — below what a model saying "low" got.
+    A cap has to be a comparison, not an enumeration of the values you
+    remembered.
     """
-    mapping = {"info": Severity.info, "low": Severity.low,
-               "medium": Severity.medium, "high": Severity.medium}
-    return mapping.get(str(claim.get("severity", "low")).lower(), Severity.low)
+    raw = str(claim.get("severity", "")).strip().lower()
+    try:
+        proposed = Severity(raw)
+    except ValueError:
+        return Severity.low          # unrecognised: assume the least
+    return min(proposed, SEVERITY_CEILING, key=_LADDER.index)
 
 
 @register(EngineSpec(
