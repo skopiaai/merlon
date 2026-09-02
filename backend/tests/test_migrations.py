@@ -11,8 +11,8 @@ import sqlite3
 import pytest
 from sqlalchemy import create_engine, inspect, text
 
-from app.db import Base, ensure_schema
 import app.models  # noqa: F401  — registers the mappers
+from app.db import Base, ensure_schema
 
 # An engagements table as it existed before authenticated scanning was added.
 OLD_SCHEMA = """

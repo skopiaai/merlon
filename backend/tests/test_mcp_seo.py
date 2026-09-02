@@ -17,10 +17,8 @@ import json
 import pytest
 
 from app.engines import registry
-from app.engines.mcpsec import (dangerous_tools, describe_tool, parse_tools,
-                                poisoned)
-from app.engines.seospam import (_spam_terms_in, hidden_spam, link_stuffing,
-                                 spam_in_sitemap)
+from app.engines.mcpsec import dangerous_tools, describe_tool, parse_tools, poisoned
+from app.engines.seospam import _spam_terms_in, hidden_spam, link_stuffing, spam_in_sitemap
 
 
 @pytest.fixture(autouse=True)

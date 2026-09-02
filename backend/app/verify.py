@@ -52,7 +52,14 @@ NON_HTTP_ENGINES = {"domainsec", "netblock", "dnsx", "tlsdeep", "nse", "buckets"
 
 # Engines whose findings are inherently a judgement call and should always get
 # a human look regardless of how cleanly they reproduce.
-ALWAYS_REVIEW = {"seospam", "intel", "favicon"}
+#
+# `jsintel` is the important entry. Its findings are hypotheses about
+# server-side behaviour inferred by a model reading client-side code. The
+# reproduction check can confirm the file is still there; it cannot confirm the
+# server is missing a check, and nothing else can either short of testing it.
+# Letting an AI-assisted lead into the submit queue would reintroduce exactly
+# the failure this whole module exists to prevent.
+ALWAYS_REVIEW = {"seospam", "intel", "favicon", "jsintel"}
 
 
 @dataclass

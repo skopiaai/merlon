@@ -16,12 +16,15 @@ currently breaking bug bounty for everyone.
 import pytest
 
 from app.engines import registry
-from app.engines.llmapps import (extract_text, injection_worked,
-                                 leaked_system_prompt, looks_like_llm, payloads)
-from app.engines.origin import (candidate_ips, confirms_origin, is_cdn_ip,
-                                is_public)
-from app.verify import (SUBMIT_THRESHOLD, Verdict, _evidence_quality, _redact,
-                        evidence_block, sha256)
+from app.engines.llmapps import (
+    extract_text,
+    injection_worked,
+    leaked_system_prompt,
+    looks_like_llm,
+    payloads,
+)
+from app.engines.origin import candidate_ips, confirms_origin, is_cdn_ip, is_public
+from app.verify import SUBMIT_THRESHOLD, Verdict, _evidence_quality, _redact, evidence_block, sha256
 from app.watch import Diff, Snapshot, diff, summarise
 
 

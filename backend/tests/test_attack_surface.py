@@ -13,8 +13,7 @@ marked where that's the point.
 import pytest
 
 from app.engines import registry
-from app.engines.apidocs import (introspection_enabled, looks_like_spec,
-                                 spec_paths)
+from app.engines.apidocs import introspection_enabled, looks_like_spec, spec_paths
 from app.engines.cors import analyse, probe_origins
 from app.engines.exposures import confirms, redact
 from app.engines.favicon import favicon_hash, icon_urls, murmur3_32
@@ -22,8 +21,7 @@ from app.engines.fetch import _parse, origins
 from app.engines.methods import parse_allow, path_variants, risky
 from app.engines.netblock import parse_asnmap, usable_networks
 from app.engines.paramminer import chunk, differs, with_params
-from app.engines.redirect import (candidate_urls, inject, payloads,
-                                  redirects_offsite)
+from app.engines.redirect import candidate_urls, inject, payloads, redirects_offsite
 from app.engines.takeover import body_confirms, match_service
 from app.engines.vhosts import is_distinct
 from app.models import Severity

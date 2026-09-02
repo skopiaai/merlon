@@ -15,7 +15,7 @@ Two things make this faster and more thorough than a single blind run:
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 
 from ..auth import header_args as _auth_args
 from .base import LogFn, require_binary, stream_jsonl

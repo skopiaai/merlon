@@ -91,7 +91,10 @@ function Freshness() {
               has reported yet.</>
           ) : (
             <>Detection content current — updated {when}
-              {templates > 0 && <>, {templates.toLocaleString()} templates loaded</>}.</>
+              {templates > 0 && <>, {templates.toLocaleString()} templates loaded</>}
+              {s.kev?.entries > 0 && (
+                <>, {s.kev.entries.toLocaleString()} actively-exploited CVEs tracked</>
+              )}.</>
           )}
         </span>
       </div>
@@ -105,6 +108,13 @@ function Freshness() {
         <div className="fresh-detail">
           {failed.length} source{failed.length > 1 ? "s" : ""} unavailable:{" "}
           {failed.map((f) => f.name).join(", ")} — everything else updated.
+        </div>
+      )}
+      {!s.running && !s.kev?.entries && (
+        <div className="fresh-detail">
+          No CISA exploited-vulnerability data yet — CVE findings will sort by
+          score alone until you update, which misses the difference between
+          "a CVE exists" and "this is being used right now".
         </div>
       )}
       {s.auto_daily && !s.running && (

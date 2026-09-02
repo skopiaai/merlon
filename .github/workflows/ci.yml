@@ -79,9 +79,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      # Advisory rather than blocking: style opinions shouldn't stop a good
-      # detection from landing.
-      - run: ruff check backend/ || true
+      # Blocking. ruff.toml pins target-version to the OLDEST Python this must
+      # import on, so this catches syntax that a newer interpreter would accept
+      # and this one will not — plus the genuine bug class (B005, B023) that
+      # reading the diff does not.
+      - name: Lint
+        working-directory: backend
+        run: ruff check app/ tests/
 
   images:
     name: Docker build

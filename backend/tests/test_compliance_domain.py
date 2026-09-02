@@ -6,7 +6,6 @@ from app import auth, compliance
 from app.engines.domainsec import _audit_dmarc, _audit_spf, _txt_join
 from app.models import Severity
 
-
 # ---------------------------------------------------------------- SPF
 
 def ids(findings):

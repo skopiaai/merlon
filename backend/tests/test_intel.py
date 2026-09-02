@@ -152,10 +152,10 @@ def test_surface_leads_generated_without_llm(scan_id):
     smap = intel.build_surface(scan_id)
     leads = intel._surface_leads(smap)
     assert leads, "surface map alone should produce leads"
-    classes = {l["vuln_class"] for l in leads}
+    classes = {lead["vuln_class"] for lead in leads}
     assert "IDOR" in classes or "business-logic" in classes
-    assert all(l["source"] == "surface" for l in leads)
-    assert all(l["priority"] in ("high", "medium", "low") for l in leads)
+    assert all(lead["source"] == "surface" for lead in leads)
+    assert all(lead["priority"] in ("high", "medium", "low") for lead in leads)
 
 
 def test_store_intel_is_idempotent(scan_id):

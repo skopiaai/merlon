@@ -38,8 +38,9 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Literal
+from typing import Literal
 
 Phase = Literal["early", "post_http"]
 Takes = Literal["seeds", "hosts", "urls", "assets"]
@@ -73,7 +74,7 @@ class EngineSpec:
     limit: int = 0                  # cap on targets passed in (0 = no cap)
     run: RunFn | None = field(default=None, compare=False)
 
-    def with_run(self, fn: RunFn) -> "EngineSpec":
+    def with_run(self, fn: RunFn) -> EngineSpec:
         return EngineSpec(**{**self.__dict__, "run": fn})
 
 

@@ -19,9 +19,8 @@ from . import auth as authmod
 from . import compliance, headers, intel, kev, normalize, updater, verify
 from .config import MAX_CONCURRENCY, MAX_CONCURRENT_SCANS, MAX_RATE_LIMIT
 from .db import SessionLocal
-from .engines import extra, registry
+from .engines import extra, recon, registry
 from .engines import nuclei as nuclei_engine
-from .engines import recon
 from .events import hub
 from .models import Asset, Engagement, Finding, Scan, ScanLog, ScanState
 from .scope import ScopeViolation, filter_hosts
@@ -416,7 +415,7 @@ class ScanRunner:
             await self._begin(dns_tasks[0][0])
             results = await asyncio.gather(*(t[1] for t in dns_tasks),
                                            return_exceptions=True)
-            for (name, _), result in zip(dns_tasks, results):
+            for (name, _), result in zip(dns_tasks, results, strict=True):
                 if isinstance(result, Exception):
                     await self.log("warn", f"[{name}] failed: {result}", name)
                     await self._end(name)

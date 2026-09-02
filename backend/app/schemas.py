@@ -180,7 +180,7 @@ class AuthConfig(BaseModel):
         description='e.g. {"Cookie": "session=abc123"} or {"Authorization": "Bearer …"}')
     check_url: str = Field("", description="A page only visible when logged in")
     check_string: str = Field("", description="Text on that page proving the session works")
-    identities: list["Identity"] = Field(
+    identities: list[Identity] = Field(
         default_factory=list,
         description="Additional accounts, for access-control testing")
 

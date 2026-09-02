@@ -1,7 +1,7 @@
 import sqlite3
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import DB_PATH
 

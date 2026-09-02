@@ -109,10 +109,17 @@ def save_state(state: dict) -> None:
 
 def status() -> dict:
     """What the UI shows: what's current, what's stale, when it last ran."""
+    from . import kev
+
     state = load_state()
     last = state.get("last_run")
     age = (time.time() - last) if last else None
     return {
+        # Surfaced separately from the source list because it changes how
+        # findings are prioritised rather than what gets detected — an empty
+        # catalogue means CVE findings sort purely by score, which is worth
+        # knowing before a scan rather than after.
+        "kev": kev.status(),
         "last_run": last,
         "age_seconds": age,
         "stale": age is None or age > STALE_AFTER,

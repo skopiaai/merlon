@@ -236,7 +236,12 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     findings: list[dict] = []
 
     for seed in targets[:3]:
-        apex = (urlparse(seed).hostname or seed).lower().lstrip("www.")
+        # `.lstrip("www.")` would strip any leading run of 'w' and '.', so
+        # "web.example.com" became "eb.example.com" and the archive query
+        # silently searched the wrong domain. lstrip takes a character set, not
+        # a prefix — a mistake that only shows up on hosts starting with w.
+        host = (urlparse(seed).hostname or seed).lower()
+        apex = host[4:] if host.startswith("www.") else host
         resp = await fetch.request(CDX.format(domain=apex, limit=12000),
                                    follow=True, timeout=90)
         if not resp.ok or not resp.body.strip():

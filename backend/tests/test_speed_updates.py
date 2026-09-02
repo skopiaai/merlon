@@ -22,10 +22,11 @@ import time
 import pytest
 
 from app.engines import registry
-from .conftest import run_coroutine
 from app.engines.nuclei import split_severities
 from app.engines.recon import PROFILES
 from app.schemas import DEPTH_PRESETS, DEPTHS, VALID_STAGES
+
+from .conftest import run_coroutine
 
 
 @pytest.fixture(autouse=True)

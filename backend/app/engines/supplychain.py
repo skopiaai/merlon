@@ -264,7 +264,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
         unprotected = [(u, t) for u, t, sri in scripts if not sri]
         if unprotected:
             risky = [(u, t) for u, t in unprotected
-                     if not MAJOR_CDNS.search((urlparse(u).hostname or ""))]
+                     if not MAJOR_CDNS.search(urlparse(u).hostname or "")]
             severity = Severity.medium if risky else Severity.low
             key = f"sri-{page_host}"
             if key not in seen_rules:

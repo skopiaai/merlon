@@ -4,8 +4,16 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
-    UniqueConstraint
+    JSON,
+    Boolean,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -88,7 +96,7 @@ class Engagement(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    scans: Mapped[list["Scan"]] = relationship(back_populates="engagement", cascade="all, delete-orphan")
+    scans: Mapped[list[Scan]] = relationship(back_populates="engagement", cascade="all, delete-orphan")
 
     @property
     def is_expired(self) -> bool:
@@ -122,8 +130,8 @@ class Scan(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     engagement: Mapped[Engagement] = relationship(back_populates="scans")
-    findings: Mapped[list["Finding"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
-    assets: Mapped[list["Asset"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
+    findings: Mapped[list[Finding]] = relationship(back_populates="scan", cascade="all, delete-orphan")
+    assets: Mapped[list[Asset]] = relationship(back_populates="scan", cascade="all, delete-orphan")
 
 
 class Asset(Base):

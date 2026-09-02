@@ -314,6 +314,10 @@ RULE_MAP: dict[str, Controls] = {
         ["A.5.34", "A.8.12"], ["3.3"], "Personal data protection",
         ["CWE-598", "CWE-200"]),
 
+    "js-logic-lead": Controls(
+        "A01:2021 Broken Access Control", ["V1.4.1", "V4.1.1"],
+        ["A.8.3", "A.8.28"], ["16.10"], "Access control", ["CWE-602", "CWE-284"]),
+
     "mcp-tool-poisoning": Controls(
         "A03:2021 Injection", ["V5.1.1", "V13.2.1"], ["A.8.28", "A.5.19"],
         ["16.11", "15.4"], "AI agent security (MCP tool poisoning)",

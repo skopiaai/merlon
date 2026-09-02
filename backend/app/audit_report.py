@@ -59,7 +59,7 @@ def _tool_versions() -> dict[str, str]:
         try:
             out = subprocess.run([tool, *args], capture_output=True, text=True, timeout=15)
             text = (out.stdout + out.stderr).strip().splitlines()
-            versions[tool] = next((l.strip() for l in text if l.strip()), "unknown")[:80]
+            versions[tool] = next((ln.strip() for ln in text if ln.strip()), "unknown")[:80]
         except Exception:  # noqa: BLE001
             versions[tool] = "unknown"
     return versions
@@ -339,10 +339,11 @@ def generate(scan_id: int) -> str:
         add("")
         add("| Priority | Area | Class | Status |")
         add("| --- | --- | --- | --- |")
-        for l in sorted(leads, key=lambda x: {"high": 0, "medium": 1, "low": 2}
+        for lead in sorted(leads, key=lambda x: {"high": 0, "medium": 1, "low": 2}
                         .get(x.priority, 1))[:30]:
-            area = l.area.replace("|", "\\|")[:70]
-            add(f"| {l.priority} | {area} | {l.vuln_class} | {l.status.value} |")
+            area = lead.area.replace("|", "\\|")[:70]
+            add(f"| {lead.priority} | {area} | {lead.vuln_class} "
+                f"| {lead.status.value} |")
         add("")
 
     # ---------------- integrity ----------------

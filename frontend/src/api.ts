@@ -249,6 +249,7 @@ export const api = {
     running: boolean;
     auto_daily: boolean;
     template_dirs: string[];
+    kev: { entries: number; age_seconds: number | null; ransomware_entries: number };
     sources: { name: string; kind: string; ok: boolean; detail: string;
                items: number; seconds: number; at: number }[];
   }>("/api/system/update"),

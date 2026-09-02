@@ -3,7 +3,7 @@
 **A self-hosted attack surface scanner that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-624%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-646%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Sentinel orchestrates twenty-odd established open-source scanners, normalises
@@ -94,6 +94,13 @@ federal systems.
 resolve (whoever registers the domain gets JavaScript execution on every
 page), third-party code without Subresource Integrity, and known-vulnerable
 library versions.
+
+**Client-side logic** — the local model reads the site's own JavaScript for
+authorization and logic code, and proposes what to test on the server. The one
+job here a regex cannot do. Every claim is checked against the source before it
+becomes a finding, and nothing from it can reach the submission queue — a
+hypothesis about server behaviour inferred from client code is a lead, not a
+result.
 
 **Reporting** — findings cross-referenced against CISA's Known Exploited
 Vulnerabilities catalogue, so a CVE that is being used in the wild outranks a

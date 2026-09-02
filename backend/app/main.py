@@ -4,25 +4,58 @@ import asyncio
 import logging
 import os
 import tempfile
-from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
-from fastapi import (Depends, FastAPI, File, HTTPException, Query, UploadFile,
-                     WebSocket, WebSocketDisconnect)
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import (analyzer, audit_report, auth, cryptosolve, ctf, ctf_writeup,
-               forensics, intel, llm, orchestrator, reporting, sarif, schemas,
-               scope, updater, verify, watch)
+from . import (
+    analyzer,
+    audit_report,
+    auth,
+    cryptosolve,
+    ctf,
+    ctf_writeup,
+    forensics,
+    intel,
+    llm,
+    orchestrator,
+    reporting,
+    sarif,
+    schemas,
+    scope,
+    updater,
+    verify,
+    watch,
+)
 from .config import ARTIFACT_DIR, DB_PATH
 from .db import get_db, init_db
 from .engines import nuclei as nuclei_engine
 from .events import hub
-from .models import (Asset, Challenge, ChallengeStatus, Engagement, Finding, Lead,
-                     Scan, ScanLog, ScanState)
+from .models import (
+    Asset,
+    Challenge,
+    ChallengeStatus,
+    Engagement,
+    Finding,
+    Lead,
+    Scan,
+    ScanLog,
+    ScanState,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -421,7 +454,7 @@ def scan_leads(sid: int, status: str | None = None, db: Session = Depends(get_db
         stmt = stmt.where(Lead.status.in_(status.split(",")))
     rows = list(db.scalars(stmt))
     order = {"high": 0, "medium": 1, "low": 2}
-    rows.sort(key=lambda l: (order.get(l.priority, 1), l.source != "ai"))
+    rows.sort(key=lambda lead: (order.get(lead.priority, 1), lead.source != "ai"))
     return rows
 
 

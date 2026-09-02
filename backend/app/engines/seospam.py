@@ -337,7 +337,7 @@ async def audit_url(url: str, *, log=None) -> list[dict]:
     results = await asyncio.gather(
         *(_fetch(url, h) for h in PERSONAS.values()), return_exceptions=True)
     pages: dict[str, tuple[int, str, str]] = {}
-    for persona, res in zip(PERSONAS, results):
+    for persona, res in zip(PERSONAS, results, strict=True):
         if isinstance(res, Exception) or not isinstance(res, tuple):
             continue
         pages[persona] = res

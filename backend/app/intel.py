@@ -485,8 +485,8 @@ def store_intel(scan_id: int, data: dict) -> int:
 
         # Don't duplicate leads if analysis is re-run for the same scan.
         existing = {
-            (l.area, l.vuln_class)
-            for l in db.scalars(select(Lead).where(Lead.scan_id == scan_id))
+            (lead.area, lead.vuln_class)
+            for lead in db.scalars(select(Lead).where(Lead.scan_id == scan_id))
         }
         added = 0
         for item in data.get("leads", []):

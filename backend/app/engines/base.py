@@ -18,8 +18,8 @@ import os
 import re
 import shutil
 import tempfile
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Callable, Awaitable
 
 LogFn = Callable[[str, str], Awaitable[None]]  # (level, message) -> None
 

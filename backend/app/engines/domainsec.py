@@ -40,7 +40,8 @@ async def _dig(name: str, rtype: str, *, server: str | None = None,
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except (asyncio.TimeoutError, OSError, FileNotFoundError):
         return []
-    return [l.strip() for l in out.decode("utf-8", "replace").splitlines() if l.strip()]
+    return [line.strip() for line in out.decode("utf-8", "replace").splitlines()
+            if line.strip()]
 
 
 def _txt_join(records: list[str]) -> list[str]:

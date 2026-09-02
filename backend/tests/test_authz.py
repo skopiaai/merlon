@@ -20,11 +20,11 @@ the next report.
 import pytest
 
 from app import auth
-from .conftest import run_coroutine
 from app.engines import registry
-from app.engines.authz import (addresses_a_record, is_real_content,
-                               same_resource)
+from app.engines.authz import addresses_a_record, is_real_content, same_resource
 from app.engines.fetch import auth_for, scoped_identity
+
+from .conftest import run_coroutine
 
 SESSION = {"Cookie": "session=secret-value-1234"}
 CTX = {"auth_headers": SESSION, "allow": ["*.example.com"], "deny": []}

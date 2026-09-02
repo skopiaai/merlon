@@ -8,7 +8,6 @@ The point is to prove the chain finds the flag without a human choosing which
 tool to run.
 """
 
-import asyncio
 import base64
 import struct
 import zlib

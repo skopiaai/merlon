@@ -22,10 +22,13 @@ import pytest
 from app import kev
 from app.engines import registry
 from app.engines.archiveleaks import group_leaks, leaks_in_url, mask
-from app.engines.pqc import (negotiated_group, supports_pq_keyexchange,
-                             tls_version, uses_pq_certificate)
-from app.engines.supplychain import (external_scripts, is_outdated,
-                                     parse_version, script_hosts)
+from app.engines.pqc import (
+    negotiated_group,
+    supports_pq_keyexchange,
+    tls_version,
+    uses_pq_certificate,
+)
+from app.engines.supplychain import external_scripts, is_outdated, parse_version, script_hosts
 
 
 @pytest.fixture(autouse=True)

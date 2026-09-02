@@ -1,0 +1,22 @@
+# Pinned to the OLDEST Python this code must import on, not the newest it might
+# run on. Ruff defaults to a recent target and will happily accept syntax that
+# only became legal later — nested quotes inside a multi-line f-string
+# expression (PEP 701, Python 3.12) parsed clean here and then failed at import
+# on 3.10. Lint that accepts code the interpreter rejects is worse than no lint,
+# because it produces confidence.
+target-version = "py310"
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B", "I", "UP", "SIM"]
+ignore = [
+    "E501",    # long lines: the explanatory comments are the point
+    "B008",    # FastAPI's Depends() in defaults is the framework's own idiom
+    "SIM105",  # contextlib.suppress is not clearer than try/except/pass here
+    "SIM102",  # nested ifs here carry a comment explaining each condition
+    "SIM103",  # `return not X` reads worse than an explicit if/return
+    "SIM110",  # an explicit loop is clearer than any() with a compound condition
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011", "E702"]
