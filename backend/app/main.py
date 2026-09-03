@@ -38,6 +38,8 @@ from . import (
     schemas,
     scope,
     scopeimport,
+    submission,
+    templategen,
     updater,
     verify,
     watch,
@@ -907,6 +909,42 @@ def finding_evidence(fid: int, db: Session = Depends(get_db)):
     if not finding.verification:
         return "Not yet verified. POST /api/findings/{id}/verify first."
     return verify.evidence_block(finding.verification)
+
+
+@app.get("/api/findings/{fid}/submission")
+def finding_submission(fid: int,
+                       platform: str = Query("generic",
+                                             description="hackerone | bugcrowd | "
+                                                         "intigriti | generic"),
+                       db: Session = Depends(get_db)):
+    """A submission report in the shape the platform's triage team reads.
+
+    Assembled from captured evidence — there is no model in this path. A report
+    is a rendering problem, and generated reports are what programs are
+    currently drowning in.
+    """
+    finding = db.get(Finding, fid)
+    if not finding:
+        raise HTTPException(404, "finding not found")
+    return submission.render(finding, platform).as_dict()
+
+
+@app.get("/api/findings/{fid}/template", response_class=PlainTextResponse)
+def finding_template(fid: int, db: Session = Depends(get_db)):
+    """A nuclei template built from this finding's verified evidence.
+
+    A finding is worth one report; a template is worth every future scan
+    against every target. Refuses findings that didn't reproduce — a template
+    built from one of those is a permanent false positive.
+    """
+    finding = db.get(Finding, fid)
+    if not finding:
+        raise HTTPException(404, "finding not found")
+    try:
+        _name, yaml_text = templategen.generate(finding)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return yaml_text
 
 
 @app.get("/api/findings/{fid}/disclosure", response_class=PlainTextResponse)

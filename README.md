@@ -3,7 +3,7 @@
 **A self-hosted attack surface scanner that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-697%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-738%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Sentinel orchestrates twenty-odd established open-source scanners, normalises
@@ -588,10 +588,43 @@ exact response, a SHA-256 of the body, and a UTC timestamp — with credentials
 redacted, so a report never becomes the second copy of a leak.
 
 ```
-GET /api/scans/{id}/queue          the three buckets
-POST /api/findings/{id}/verify     re-check one on demand
-GET /api/findings/{id}/evidence    reproduction block, ready to paste
+GET  /api/scans/{id}/queue                       the three buckets
+POST /api/findings/{id}/verify                   re-check one on demand
+GET  /api/findings/{id}/evidence                 reproduction block
+GET  /api/findings/{id}/submission?platform=…    hackerone | bugcrowd | intigriti
+GET  /api/findings/{id}/template                 a reusable nuclei template
 ```
+
+### Submitting
+
+Every platform reads reports in a different shape, and the difference isn't
+cosmetic — HackerOne triagers work Summary → Steps to Reproduce → Impact and
+bounce reports missing reproduction steps; Bugcrowd wants a VRT category up
+front because that determines the payout band. A good finding in the wrong
+shape gets sent back for "more information" and loses a week.
+
+Reports are **assembled from the captured evidence**, not generated. There is
+no model in that path, and a test asserts it: a report is a rendering problem,
+and generated reports are what programs are currently drowning in.
+
+**A finding that didn't reproduce won't render as a submission.** It returns a
+refusal that names the three possibilities — the target changed, the result was
+intermittent, or it was never real — and tells you to re-verify. Making it one
+click to file an unreproducible finding would undo the entire verification
+layer.
+
+### Keeping the work
+
+`GET /api/findings/{id}/template` turns a verified finding into a nuclei
+template. A finding is worth one report; a template is worth every future scan
+against every target, and it runs in anyone else's nuclei too.
+
+Matchers come from the response that was actually recorded — never inferred —
+and anything that describes *this* target rather than the vulnerability (a
+hostname, a date, a session id) is kept out, because a matcher like that looks
+like a working check and silently matches nothing everywhere else. The
+generated YAML is parsed before it's handed over, so a malformed file is
+raised as a generator bug rather than delivered.
 
 ---
 

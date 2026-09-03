@@ -224,6 +224,12 @@ export const api = {
               new: number; seen_before: number };
   }>(`/api/scans/${scanId}/queue`),
 
+  // Assembled from captured evidence — no model in this path.
+  submissionReport: (id: number, platform: string) => req<{
+    platform: string; title: string; body: string;
+    ready: boolean; warning: string;
+  }>(`/api/findings/${id}/submission?platform=${platform}`),
+
   verifyFinding: (id: number) => req<{
     confidence: number; reproduced: boolean; submittable: boolean;
     reasons: string[]; evidence: unknown[];

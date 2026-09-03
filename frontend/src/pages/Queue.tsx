@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+const PLATFORMS = ["hackerone", "bugcrowd", "intigriti", "generic"] as const;
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type QueueEntry } from "../api";
 import { SEV_HEX } from "../plain";
@@ -82,7 +84,24 @@ export default function Queue({ scanId }: { scanId: number }) {
             <a className="btn sm ghost" target="_blank" rel="noreferrer"
               href={`/api/findings/${f.id}/disclosure`}>
               Full report
+            </a>{" "}
+            <a className="btn sm ghost" target="_blank" rel="noreferrer"
+              href={`/api/findings/${f.id}/template`}
+              title="A nuclei template built from this finding's evidence — reusable on every future target">
+              Nuclei template
             </a>
+            <div style={{ marginTop: 10 }}>
+              <span className="muted" style={{ fontSize: 11 }}>
+                Submission report:{" "}
+              </span>
+              {PLATFORMS.map((p) => (
+                <a key={p} className="btn sm ghost" target="_blank" rel="noreferrer"
+                  style={{ marginRight: 6 }}
+                  href={`/api/findings/${f.id}/submission?platform=${p}`}>
+                  {p}
+                </a>
+              ))}
+            </div>
           </td>
         </tr>
       )}
