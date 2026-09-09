@@ -30,6 +30,9 @@ from . import (
     ctf,
     ctf_writeup,
     forensics,
+    htb,
+    htbcontent,
+    htbscan,
     intel,
     llm,
     orchestrator,
@@ -54,6 +57,7 @@ from .models import (
     ChallengeStatus,
     Engagement,
     Finding,
+    HtbMachine,
     Lead,
     Scan,
     ScanLog,
@@ -650,6 +654,203 @@ async def challenge_writeup(cid: int, db: Session = Depends(get_db)):
     ch.writeup = text
     db.commit()
     return text
+
+
+# ---------------- Hack The Box ----------------
+#
+# A box is not an engagement: it is one host, worked through in phases, and
+# then never touched again. So it gets its own resource rather than being bent
+# into the scan pipeline, which is built around a scope you rescan over time.
+
+@app.get("/api/htb/reference")
+def htb_reference():
+    """Phases, privesc checklists, the XP tables, and every rule."""
+    return {**htb.summary(), "knowledge": htbcontent.status()}
+
+
+@app.post("/api/htb/machines", response_model=schemas.HtbMachineOut, status_code=201)
+def create_htb_machine(payload: schemas.HtbMachineCreate, db: Session = Depends(get_db)):
+    m = HtbMachine(**payload.model_dump())
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+@app.get("/api/htb/machines", response_model=list[schemas.HtbMachineOut])
+def list_htb_machines(db: Session = Depends(get_db)):
+    rows = list(db.scalars(select(HtbMachine)))
+    # Unfinished boxes first, then most recent — the list exists to answer
+    # "what am I in the middle of", not "what have I done".
+    rows.sort(key=lambda m: (bool(m.root_flag), -m.id))
+    return rows
+
+
+@app.patch("/api/htb/machines/{mid}", response_model=schemas.HtbMachineOut)
+def update_htb_machine(mid: int, payload: schemas.HtbMachineUpdate,
+                       db: Session = Depends(get_db)):
+    m = db.get(HtbMachine, mid)
+    if not m:
+        raise HTTPException(404, "machine not found")
+    data = payload.model_dump(exclude_none=True)
+    for k, v in data.items():
+        setattr(m, k, v)
+
+    now = datetime.now(timezone.utc)
+    if m.user_flag and not m.user_owned_at:
+        m.user_owned_at = now
+    if m.root_flag and not m.root_owned_at:
+        m.root_owned_at = now
+    m.phase = htb.current_phase(_obs_from(m))
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+@app.delete("/api/htb/machines/{mid}", status_code=204)
+def delete_htb_machine(mid: int, db: Session = Depends(get_db)):
+    m = db.get(HtbMachine, mid)
+    if not m:
+        raise HTTPException(404, "machine not found")
+    db.delete(m)
+    db.commit()
+
+
+def _obs_from(m: HtbMachine) -> htb.Observation:
+    return htb.Observation(
+        host=m.host, os_guess=m.os_guess or m.os, ports=list(m.ports or []),
+        hostnames=list(m.hostnames or []), creds=list(m.creds or []),
+        has_shell=bool(m.has_shell), shell_user=m.shell_user or "",
+        is_root=bool(m.is_root), user_flag=bool(m.user_flag),
+        root_flag=bool(m.root_flag), difficulty=m.difficulty or "easy",
+    )
+
+
+@app.post("/api/htb/machines/{mid}/recon")
+async def htb_recon(mid: int, full: bool = True, db: Session = Depends(get_db)):
+    """Scan the box and store what came back."""
+    m = db.get(HtbMachine, mid)
+    if not m:
+        raise HTTPException(404, "machine not found")
+    # The box is its own allowlist — an HTB machine has no domain scope to
+    # inherit. The hard-deny ranges still apply, which is what stops this
+    # becoming a way to scan link-local or loopback addresses.
+    decision = scope.check(m.host, [m.host], [])
+    if not decision.allowed:
+        raise HTTPException(400, f"refusing to scan {m.host}: {decision.reason}")
+    result = await htbscan.recon(m.host, full=full, difficulty=m.difficulty or "easy")
+    m.ports = result["ports"]
+    m.hostnames = result["hostnames"]
+    m.os_guess = result["os_guess"]
+    m.phase = result["phase"]
+    db.commit()
+    return result
+
+
+@app.get("/api/htb/machines/{mid}/next")
+def htb_next(mid: int, db: Session = Depends(get_db)):
+    """Ranked next steps from what is already known — no scanning."""
+    m = db.get(HtbMachine, mid)
+    if not m:
+        raise HTTPException(404, "machine not found")
+    obs = _obs_from(m)
+    return {"phase": htb.current_phase(obs), "actions": htb.next_actions(obs),
+            "phases": htb.PHASES}
+
+
+@app.post("/api/htb/machines/{mid}/hint")
+def htb_hint(mid: int, level: int = 1, key: str = "",
+             db: Session = Depends(get_db)):
+    """One rung of the hint ladder. Level 4 is the literal command.
+
+    Counted, because the count is the honest feedback: a box solved at level 1
+    taught you something and a box solved at level 4 taught you a command.
+    """
+    m = db.get(HtbMachine, mid)
+    if not m:
+        raise HTTPException(404, "machine not found")
+    result = htb.hint(_obs_from(m), level=level, key=key)
+    m.hints_used += 1
+    m.max_hint_level = max(m.max_hint_level, result["level"])
+    db.commit()
+    return {**result, "hints_used": m.hints_used,
+            "writeup_policy": htb.writeup_policy(m.state)}
+
+
+@app.post("/api/htb/flags")
+def htb_flags(payload: schemas.FlagCheck):
+    """Paste any output; get back what in it is a flag, and how sure we are."""
+    return {"flags": htb.classify_flag(payload.text, source=payload.source)}
+
+
+@app.post("/api/htb/privesc/sudo")
+def htb_sudo_lookup(payload: schemas.FlagCheck):
+    """Paste `sudo -l` output; get the exact escalation for each entry."""
+    return {"entries": htbcontent.parse_sudo_l(payload.text),
+            "knowledge": htbcontent.status()}
+
+
+@app.post("/api/htb/privesc/scan")
+def htb_privesc_scan(payload: schemas.FlagCheck):
+    """Paste any post-shell enumeration output; get what is worth acting on."""
+    return {"hits": htbcontent.suggest_from_shell_output(payload.text)}
+
+
+@app.get("/api/htb/privesc/lookup")
+def htb_binary_lookup(binary: str, platform: str = "linux"):
+    """One binary, straight lookup — for when you already know the name."""
+    return htbcontent.lookup(binary, platform=platform)
+
+
+@app.post("/api/htb/knowledge/update")
+async def htb_knowledge_update():
+    """Refresh GTFOBins and LOLBAS.
+
+    Separate from the main content updater because these change on a different
+    schedule and because someone mid-box wants to refresh privesc data without
+    waiting for a full template sync.
+    """
+    results = await htbcontent.refresh()
+    return {"sources": results, "knowledge": htbcontent.status()}
+
+
+@app.get("/api/htb/xp")
+def htb_xp(db: Session = Depends(get_db)):
+    """XP earned from the boxes tracked here, and the weekly streak position.
+
+    Only counts what you recorded in this tool, so it is a lower bound on your
+    real total — it exists to answer "what should I play tonight", not to
+    mirror your profile.
+    """
+    rows = list(db.scalars(select(HtbMachine)))
+    start, _ = htb.week_bounds()
+    total = 0
+    this_week = 0
+    for m in rows:
+        if not m.user_flag:
+            continue
+        earned = htb.xp_for("machine", m.difficulty, active=(m.state == "active"),
+                            root=bool(m.root_flag))
+        total += earned
+        owned = m.root_owned_at or m.user_owned_at
+        if owned:
+            if owned.tzinfo is None:
+                owned = owned.replace(tzinfo=timezone.utc)
+            if owned >= start:
+                this_week += earned
+    return {
+        "tracked_xp": total,
+        "streak": htb.streak_status(this_week),
+        "machines": len(rows),
+        "rooted": sum(1 for m in rows if m.root_flag),
+        "user_only": sum(1 for m in rows if m.user_flag and not m.root_flag),
+    }
+
+
+@app.post("/api/htb/xp/plan")
+def htb_xp_plan(target: int = 500, active: bool = True):
+    """Cheapest routes to a target amount of XP."""
+    return {"target": target, "routes": htb.plan_to_target(target, prefer_active=active)}
 
 
 # ---------------- reports ----------------

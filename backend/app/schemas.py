@@ -410,3 +410,70 @@ class RSARequest(BaseModel):
             return ""
         s = str(v).strip().replace("_", "").replace(" ", "")
         return str(int(s, 16)) if s.lower().startswith("0x") else s
+
+
+# ---------------------------------------------------------------- Hack The Box
+
+class HtbMachineCreate(BaseModel):
+    name: str = ""
+    host: str = Field(min_length=1, max_length=120)
+    difficulty: str = "easy"
+    os: str = ""
+    state: str = "active"
+    kind: str = "machine"
+
+
+class HtbMachineUpdate(BaseModel):
+    name: str | None = None
+    difficulty: str | None = None
+    os: str | None = None
+    state: str | None = None
+    has_shell: bool | None = None
+    shell_user: str | None = None
+    is_root: bool | None = None
+    user_flag: str | None = None
+    root_flag: str | None = None
+    creds: list[dict] | None = None
+    notes: str | None = None
+
+
+class HtbMachineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    host: str
+    difficulty: str
+    os: str
+    state: str
+    kind: str
+    phase: str
+    has_shell: bool
+    shell_user: str
+    is_root: bool
+    user_flag: str
+    root_flag: str
+    ports: list
+    hostnames: list
+    creds: list
+    os_guess: str
+    notes: str
+    hints_used: int
+    max_hint_level: int
+    created_at: datetime
+    user_owned_at: datetime | None
+    root_owned_at: datetime | None
+
+
+class FlagCheck(BaseModel):
+    """Paste any output; get back what in it looks like a flag."""
+    text: str = Field(min_length=1, max_length=500_000)
+    source: str = ""
+
+
+class XpEntry(BaseModel):
+    kind: str = "machine"          # machine | challenge | sherlock
+    difficulty: str = "easy"
+    active: bool = False
+    root: bool = False
+    tasks: int = 0

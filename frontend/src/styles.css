@@ -848,3 +848,55 @@ details.rawlog pre {
   text-transform: uppercase; letter-spacing: 0.18em; color: var(--lime);
 }
 .flagbox .cmd { color: var(--ok-ink); border-color: var(--ok-line); }
+
+/* ---------------------------------------------------------- Hack The Box */
+
+.htb-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .htb-layout { grid-template-columns: 1fr; } }
+
+.htb-machines { list-style: none; margin: 0; padding: 0; }
+.htb-machines li { padding: 10px 14px; cursor: pointer; border-top: 1px solid var(--line); }
+.htb-machines li:hover { background: var(--hover); }
+.htb-machines li.on { background: var(--hover); border-left: 2px solid var(--neon); }
+.htb-machines .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.pill.tier-easy { background: var(--lime); }
+.pill.tier-medium { background: var(--amber); }
+.pill.tier-hard { background: var(--crit); }
+.pill.tier-insane { background: #a855f7; }
+.pill.tier-starting-point { background: var(--neon); }
+
+.htb-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.htb-tabs button {
+  background: none; border: 1px solid var(--line); color: var(--fg-dim);
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12.5px;
+}
+.htb-tabs button.on { border-color: var(--neon); color: var(--fg); }
+
+.phase-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.phase-strip .phase {
+  font-size: 10.5px; padding: 3px 9px; border-radius: 20px;
+  border: 1px solid var(--line); color: var(--fg-dim); cursor: help;
+}
+.phase-strip .phase.on { border-color: var(--neon); color: var(--neon); }
+
+.card.action.now { border-left: 2px solid var(--neon); }
+pre.cmd {
+  background: var(--code-bg, rgba(0,0,0,.28)); border: 1px solid var(--line);
+  border-radius: 6px; padding: 10px 12px; overflow-x: auto;
+  font-size: 11.5px; line-height: 1.55; white-space: pre;
+}
+.ladder blockquote {
+  margin: 10px 0; padding: 10px 14px; border-left: 2px solid var(--amber);
+  background: var(--hover);
+}
+.ladder blockquote p { margin: 0 0 8px; font-size: 12.5px; }
+.ladder blockquote p:last-child { margin-bottom: 0; }
+.ladder .rung {
+  display: inline-block; font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--amber); margin-right: 8px;
+}
+.warn-box {
+  border-left: 2px solid var(--amber); background: var(--hover);
+  padding: 10px 14px; font-size: 12.5px; margin: 12px 0;
+}

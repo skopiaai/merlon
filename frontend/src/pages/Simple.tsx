@@ -76,7 +76,12 @@ function Freshness() {
   const templates = s.sources
     .filter((x) => x.kind === "templates")
     .reduce((n, x) => n + x.items, 0);
-  const failed = s.sources.filter((x) => !x.ok);
+  // Three states, not two. A source that cannot self-update inside the
+  // container (a pinned binary) is not a source that failed — reporting both
+  // as "unavailable" made a fully-current install look broken, and a warning
+  // that cries wolf is worse than no warning at all.
+  const failed = s.sources.filter((x) => !x.ok && !x.skipped);
+  const skipped = s.sources.filter((x) => !x.ok && x.skipped);
 
   return (
     <div className={`freshness ${s.stale ? "stale" : ""}`}>
@@ -106,8 +111,15 @@ function Freshness() {
 
       {!!failed.length && !s.running && (
         <div className="fresh-detail">
-          {failed.length} source{failed.length > 1 ? "s" : ""} unavailable:{" "}
-          {failed.map((f) => f.name).join(", ")} — everything else updated.
+          {failed.length} source{failed.length > 1 ? "s" : ""} failed:{" "}
+          {failed.map((f) => `${f.name} (${f.detail || "no detail"})`).join(", ")}
+          {" "}— everything else updated.
+        </div>
+      )}
+      {!!skipped.length && !s.running && !failed.length && (
+        <div className="fresh-detail muted">
+          {skipped.map((f) => f.name).join(", ")} {skipped.length > 1 ? "are" : "is"}
+          {" "}pinned by the container image and updates when you rebuild — not a problem.
         </div>
       )}
       {!s.running && !s.kev?.entries && (

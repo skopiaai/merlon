@@ -56,6 +56,15 @@ class SourceResult:
     seconds: float = 0.0
     at: float = field(default_factory=time.time)
 
+    # "This source could not update, and that is fine" is a different state
+    # from "this source failed". Pinned binaries inside the container are the
+    # main case: they are refreshed when the image is rebuilt, so an in-place
+    # self-update being unavailable changes nothing about detection coverage.
+    # Collapsing the two made the panel report "2 sources unavailable" for a
+    # system that was completely current, which trains you to ignore it — and
+    # then you also ignore the one that matters.
+    skipped: bool = False
+
 
 @dataclass
 class UpdateRun:
@@ -80,7 +89,9 @@ COMMUNITY_REPOS: list[tuple[str, str]] = [
     ("fuzzing-templates", "https://github.com/projectdiscovery/fuzzing-templates.git"),
     ("nuclei-bb", "https://github.com/coffinxp/nuclei-templates.git"),
     ("kenzer", "https://github.com/ARPSyndicate/kenzer-templates.git"),
-    ("geeknik", "https://github.com/geeknik/nuclei-templates.git"),
+    # Renamed upstream: geeknik/nuclei-templates is now a 404 and the repo
+    # lives at the-nuclei-templates. Verified 226 templates at time of change.
+    ("geeknik", "https://github.com/geeknik/the-nuclei-templates.git"),
     ("cent", "https://github.com/xm1k3/cent.git"),
 ]
 
@@ -260,14 +271,54 @@ async def update_tool(binary: str) -> SourceResult:
     """
     started = time.time()
     result = SourceResult(name=binary, kind="tools")
-    if not shutil.which(binary):
-        result.detail = "not installed"
+    path = shutil.which(binary)
+    if not path:
+        result.skipped = True
+        result.detail = "not installed in this image"
         return result
 
     code, out = await _run([binary, "-update", "-silent"], timeout=600)
-    result.ok = code == 0
-    result.detail = (out or "current")[-200:]
+    text = (out or "").strip()
+    low = text.lower()
     result.seconds = round(time.time() - started, 1)
+
+    if code == 0:
+        result.ok = True
+        result.detail = text[-200:] or "current"
+        return result
+
+    # Non-zero covers several situations that are not failures. Classify them,
+    # because the difference decides whether the user should act.
+    #
+    #  - "latest version" — nothing to do; the tool said so and then exited
+    #    non-zero anyway, which several ProjectDiscovery releases do.
+    #  - version unknown — a binary built with `go install` carries no release
+    #    version, so the updater cannot compare and refuses. Expected here:
+    #    the Dockerfile builds some tools from source on purpose.
+    #  - read-only or permission — the binary lives in an image layer. Nothing
+    #    to fix; `docker compose build --pull` is how these get updated.
+    benign = (
+        "latest version" in low
+        or ("already" in low and "date" in low)
+        or "up to date" in low
+        or "no updates" in low
+    )
+    unwritable = any(k in low for k in
+                     ("permission denied", "read-only", "read only", "text file busy"))
+    unversioned = any(k in low for k in
+                      ("could not determine", "unable to determine", "version not found",
+                       "no version", "devel"))
+
+    if benign:
+        result.ok = True
+        result.detail = text[-200:] or "already current"
+    elif unwritable or unversioned:
+        result.skipped = True
+        result.detail = (
+            f"pinned by the container image — rebuild to update ({text[-120:]})"
+            if text else "pinned by the container image — rebuild to update")
+    else:
+        result.detail = text[-200:] or f"exited {code} with no output"
     return result
 
 

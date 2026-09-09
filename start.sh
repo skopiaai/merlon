@@ -22,7 +22,33 @@ trap 'status=$?; if [ "$status" -ne 0 ]; then
         printf "     This is a bug in the script, not in your setup — please report it.\n"
       fi' ERR
 
-MODEL="${OLLAMA_MODEL:-qwen2.5:14b}"
+# Sized to the machine at run time. A 14b model on 8 GB of RAM does not fail
+# cleanly — it swaps, the box crawls, and triage takes minutes per finding,
+# which reads as "the app is broken". Override with OLLAMA_MODEL if you know
+# better than this guess.
+total_ram_gb() {
+  if [ "$(uname -s)" = "Darwin" ]; then
+    echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
+  elif [ -r /proc/meminfo ]; then
+    echo $(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 ))
+  else
+    echo 0
+  fi
+}
+
+pick_model() {
+  ram=$(total_ram_gb)
+  # Apple Silicon shares RAM with the GPU, so usable headroom is smaller than
+  # the number suggests — hence the conservative steps.
+  if   [ "$ram" -ge 32 ]; then echo "qwen2.5:14b"
+  elif [ "$ram" -ge 16 ]; then echo "qwen2.5:7b"
+  elif [ "$ram" -ge 8 ];  then echo "qwen2.5:3b"
+  elif [ "$ram" -gt 0 ];  then echo "qwen2.5:1.5b"
+  else                         echo "qwen2.5:7b"
+  fi
+}
+
+MODEL="${OLLAMA_MODEL:-$(pick_model)}"
 UI="http://127.0.0.1:5173"
 API="http://127.0.0.1:8000"
 
@@ -124,6 +150,9 @@ if command -v ollama >/dev/null 2>&1; then
 
   if curl -sf http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     ok "Ollama is running"
+    if [ -z "${OLLAMA_MODEL:-}" ]; then
+      info "$(total_ram_gb) GB RAM detected — using $MODEL (set OLLAMA_MODEL to override)"
+    fi
     if ! ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -q "^${MODEL}$"; then
       warn "Model '$MODEL' not downloaded yet. Pulling it now (this is several GB)…"
       ollama pull "$MODEL" || warn "Pull failed — continuing without AI triage."
@@ -134,10 +163,42 @@ if command -v ollama >/dev/null 2>&1; then
     warn "Ollama wouldn't start. Continuing without AI triage (see /tmp/ollama.log)."
   fi
 else
-  warn "Ollama not installed — skipping AI triage. Install from ollama.com to enable it."
+  # Offer to install rather than just reporting the absence: "one command and
+  # everything happens" is the point of this script.
+  warn "Ollama isn't installed — it powers AI triage and JS analysis."
+  if [ "${SENTINEL_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Darwin" ] \
+     && command -v brew >/dev/null 2>&1; then
+    info "installing via Homebrew (ctrl-C to skip)…"
+    if brew install ollama >/dev/null 2>&1; then
+      ok "Ollama installed"
+      nohup ollama serve >/tmp/ollama.log 2>&1 &
+      sleep 3
+      info "pulling $MODEL in the background — the app works before it finishes"
+      nohup ollama pull "$MODEL" >/tmp/ollama-pull.log 2>&1 &
+    else
+      warn "Homebrew install failed. Get it from ollama.com; the app runs without it."
+    fi
+  elif [ "${SENTINEL_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
+    info "installing via the official script (ctrl-C to skip)…"
+    if curl -fsSL https://ollama.com/install.sh | sh >/tmp/ollama-install.log 2>&1; then
+      ok "Ollama installed"
+      nohup ollama serve >/tmp/ollama.log 2>&1 &
+      sleep 3
+      nohup ollama pull "$MODEL" >/tmp/ollama-pull.log 2>&1 &
+    else
+      warn "Install failed (see /tmp/ollama-install.log). The app runs without it."
+    fi
+  else
+    warn "Skipping — install from ollama.com to enable AI triage."
+  fi
 fi
 
 # ---------- 3. The stack ----------
+# The backend gets its model name from compose, which has its own default.
+# Without exporting, a machine sized down to a 3b model would pull 3b and then
+# ask Ollama for 14b — and get "model not found" on every triage call.
+export OLLAMA_MODEL="$MODEL"
+
 bold "Starting containers…"
 # Same reasoning as the build-cache check above: an `if` block, for the same
 # "cannot become a footgun later" reason rather than because the `&&` form was

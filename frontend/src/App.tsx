@@ -4,8 +4,9 @@ import { api } from "./api";
 import Simple from "./pages/Simple";
 import Pro from "./pages/Pro";
 import CTF from "./pages/CTF";
+import HTB from "./pages/HTB";
 
-type Tab = "scan" | "console" | "ctf";
+type Tab = "scan" | "console" | "ctf" | "htb";
 
 /** Shown instead of the app when the API is unreachable. */
 function BackendDown() {
@@ -82,6 +83,9 @@ export default function App() {
               <button className={tab === "ctf" ? "on" : ""} onClick={() => setTab("ctf")}>
                 CTF
               </button>
+              <button className={tab === "htb" ? "on" : ""} onClick={() => setTab("htb")}>
+                HTB
+              </button>
             </nav>
             <span title={ollamaOn ? health.data?.ollama.models.join(", ") : "Start Ollama for AI triage"}>
               <i className={`led ${ollamaOn ? "on" : "off"}`} />
@@ -101,6 +105,7 @@ export default function App() {
         {backendDown ? <BackendDown />
           : tab === "scan" ? <Simple />
           : tab === "ctf" ? <CTF />
+          : tab === "htb" ? <HTB />
           : <Pro />}
       </div>
     </div>

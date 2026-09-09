@@ -284,6 +284,50 @@ class Challenge(Base):
     solved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class HtbMachine(Base):
+    """One Hack The Box machine you are working on.
+
+    Separate from Engagement/Scan because the lifecycle is different: an
+    engagement is a scope you scan repeatedly, a box is a single host you work
+    through in phases until it is rooted, and then never touch again.
+
+    Flags are stored because you need them to submit — but only ones you found
+    yourself. Nothing here is ever fetched from anywhere; the columns are a
+    notebook, not a source.
+    """
+    __tablename__ = "htb_machines"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(Text, default="")
+    host: Mapped[str] = mapped_column(String(120), index=True)
+    difficulty: Mapped[str] = mapped_column(String(20), default="easy")
+    os: Mapped[str] = mapped_column(String(20), default="")       # linux|windows
+    state: Mapped[str] = mapped_column(String(20), default="active")  # active|retired
+    kind: Mapped[str] = mapped_column(String(20), default="machine")  # machine|challenge|sherlock
+
+    # Progress. `phase` is derived on read, but stored so the list view does
+    # not have to recompute it for every row.
+    phase: Mapped[str] = mapped_column(String(20), default="recon")
+    has_shell: Mapped[bool] = mapped_column(Boolean, default=False)
+    shell_user: Mapped[str] = mapped_column(String(80), default="")
+    is_root: Mapped[bool] = mapped_column(Boolean, default=False)
+    user_flag: Mapped[str] = mapped_column(Text, default="")
+    root_flag: Mapped[str] = mapped_column(Text, default="")
+
+    ports: Mapped[list] = mapped_column(JSON, default=list)
+    hostnames: Mapped[list] = mapped_column(JSON, default=list)
+    creds: Mapped[list] = mapped_column(JSON, default=list)
+    os_guess: Mapped[str] = mapped_column(Text, default="")
+
+    notes: Mapped[str] = mapped_column(Text, default="")
+    hints_used: Mapped[int] = mapped_column(Integer, default=0)
+    max_hint_level: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    user_owned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    root_owned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class ScanLog(Base):
     __tablename__ = "scan_logs"
 

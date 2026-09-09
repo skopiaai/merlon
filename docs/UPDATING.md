@@ -115,3 +115,51 @@ of disclosed findings (after the program permits disclosure), a blog post on
 your dedupe or triage approach, the scope-guard design — all of that
 demonstrates the same skill without handing anyone a weapon. For a cybersecurity
 student that's a stronger portfolio than the code itself.
+
+---
+
+## Reference: what the updater actually refreshes
+
+*(Moved here from the README when it was split into docs/.)*
+
+The code here changes monthly. The content — templates, fingerprints,
+wordlists — changes daily, and a template published this morning finds bugs
+this afternoon that yesterday's copy walks straight past. For a bounty that gap
+*is* the game: when a new CVE template lands, the first valid report is the one
+that gets paid.
+
+**Update now** sits above the Execute button on the scan page, with the age of
+your content next to it. If it's more than a day old the bar turns amber and
+says so, because "I updated it at some point" is not the same as knowing.
+
+It also runs automatically every 24 hours. Set `SENTINEL_AUTO_UPDATE=0` to
+disable that.
+
+| Source | What it refreshes |
+|---|---|
+| nuclei-templates | The official set — several commits a day |
+| Community repos | 5 repositories maintained by bounty hunters, where checks for very recent disclosures usually appear first |
+| Takeover fingerprints | Service signatures from `can-i-take-over-xyz` |
+| Wordlists | SecLists, if installed as a git checkout |
+| Tool binaries | httpx, subfinder, dnsx, cdncheck, katana, naabu, tlsx, nuclei — their detection logic changes too |
+
+Community repositories are cloned into `/data/templates/<name>` and run as a
+**separate nuclei pass**. That's deliberate: `-t` restricts nuclei to the given
+paths, so adding a community directory to the main pass would silently disable
+the official set instead of supplementing it.
+
+Each source updates independently. A repository that's been renamed or deleted
+costs you that repository and nothing else — the UI names which sources failed
+and carries on.
+
+**A note on `ffuf`.** Content discovery is by far the noisiest thing here — it
+sends thousands of requests for paths that mostly don't exist. It's capped to
+five hosts and rate-limited, and it's only in Deep for that reason. On a bounty
+program, check their rate-limit policy before using it.
+
+Rate limits are capped globally in `backend/app/config.py`. A scan can request
+less than the ceiling, never more — that's what stops a mistyped config from
+hammering someone's production box.
+
+---
+

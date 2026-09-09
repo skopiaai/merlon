@@ -271,8 +271,8 @@ export const api = {
     auto_daily: boolean;
     template_dirs: string[];
     kev: { entries: number; age_seconds: number | null; ransomware_entries: number };
-    sources: { name: string; kind: string; ok: boolean; detail: string;
-               items: number; seconds: number; at: number }[];
+    sources: { name: string; kind: string; ok: boolean; skipped?: boolean;
+               detail: string; items: number; seconds: number; at: number }[];
   }>("/api/system/update"),
 
   runUpdate: () => req<{ started: boolean; detail: string }>(
@@ -368,6 +368,35 @@ export const api = {
   challengeWriteup: (id: number) =>
     req<string>(`/api/ctf/challenges/${id}/writeup`, { method: "POST" }),
 
+  // ---- Hack The Box ----
+  htbReference: () => req<HtbReference>("/api/htb/reference"),
+  htbMachines: () => req<HtbMachine[]>("/api/htb/machines"),
+  htbCreate: (body: { name: string; host: string; difficulty: string; os: string; state: string }) =>
+    req<HtbMachine>("/api/htb/machines", { method: "POST", body: JSON.stringify(body) }),
+  htbUpdate: (id: number, body: Partial<HtbMachine>) =>
+    req<HtbMachine>(`/api/htb/machines/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  htbDelete: (id: number) => req<void>(`/api/htb/machines/${id}`, { method: "DELETE" }),
+  htbRecon: (id: number, full = true) =>
+    req<HtbRecon>(`/api/htb/machines/${id}/recon?full=${full}`, { method: "POST" }),
+  htbNext: (id: number) =>
+    req<{ phase: string; actions: HtbAction[]; phases: HtbPhase[] }>(`/api/htb/machines/${id}/next`),
+  htbHint: (id: number, level: number, key = "") =>
+    req<HtbHint>(`/api/htb/machines/${id}/hint?level=${level}&key=${encodeURIComponent(key)}`,
+      { method: "POST" }),
+  htbFlags: (text: string, source = "") =>
+    req<{ flags: HtbFlag[] }>("/api/htb/flags",
+      { method: "POST", body: JSON.stringify({ text, source }) }),
+  htbSudo: (text: string) =>
+    req<{ entries: SudoEntry[] }>("/api/htb/privesc/sudo",
+      { method: "POST", body: JSON.stringify({ text }) }),
+  htbTriage: (text: string) =>
+    req<{ hits: { title: string; platform: string; why: string; command: string }[] }>(
+      "/api/htb/privesc/scan", { method: "POST", body: JSON.stringify({ text }) }),
+  htbKnowledgeUpdate: () =>
+    req<{ sources: { name: string; ok: boolean; detail: string; items: number }[] }>(
+      "/api/htb/knowledge/update", { method: "POST" }),
+  htbXp: () => req<HtbXp>("/api/htb/xp"),
+
   leads: (scanId: number) => req<Lead[]>(`/api/scans/${scanId}/leads`),
   surface: (scanId: number) => req<SurfaceMap>(`/api/scans/${scanId}/surface`),
   updateLead: (id: number, body: Partial<Pick<Lead, "status" | "notes" | "priority">>) =>
@@ -399,4 +428,62 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   medium: "var(--med)",
   low: "var(--low)",
   info: "var(--info)",
+};
+
+// ---- Hack The Box ----
+export type HtbMachine = {
+  id: number; name: string; host: string; difficulty: string; os: string;
+  state: string; kind: string; phase: string; has_shell: boolean;
+  shell_user: string; is_root: boolean; user_flag: string; root_flag: string;
+  ports: { port: number; service: string; product: string; version: string }[];
+  hostnames: string[]; creds: { user: string; secret: string }[];
+  os_guess: string; notes: string; hints_used: number; max_hint_level: number;
+  created_at: string; user_owned_at: string | null; root_owned_at: string | null;
+};
+
+export type HtbAction = {
+  key: string; phase: string; tier: string; title: string; why: string;
+  commands: string[]; look_for: string[]; hints: string[]; current_phase: boolean;
+};
+
+export type HtbPhase = { key: string; label: string; done_when: string; trap: string };
+
+export type HtbRecon = {
+  host: string; warning: string; phase: string;
+  ports: HtbMachine["ports"]; hostnames: string[]; os_guess: string;
+  actions: HtbAction[]; quick_detail: string; full_detail: string;
+  seconds: number; hosts_file: string;
+};
+
+export type HtbHint = {
+  key: string; title: string; level: number; level_label: string; of: number;
+  hint: string; next_level_available: boolean; hints_used: number;
+  requested_key: string; substituted: boolean; note?: string;
+  writeup_policy: { allowed: boolean; note: string };
+};
+
+export type HtbFlag = { value: string; kind: string; confidence: number; why: string };
+
+export type SudoEntry = {
+  path: string; runas: string; binary: string; exploitable: boolean;
+  command?: string; note?: string; source?: string;
+};
+
+export type HtbXp = {
+  tracked_xp: number; machines: number; rooted: number; user_only: number;
+  streak: {
+    week_start: string; week_end: string; xp_this_week: number;
+    xp_needed: number; safe: boolean; hours_left: number; urgent: boolean;
+    suggestion: string;
+  };
+};
+
+export type HtbReference = {
+  phases: HtbPhase[];
+  privesc: Record<string, { label: string; first: string[]; then: string[];
+                            checks: [string, string][] }>;
+  xp: Record<string, unknown>;
+  rules: { key: string; phase: string; title: string; why: string;
+           ports: number[]; look_for: string[] }[];
+  knowledge: Record<string, { entries: number; age_seconds: number | null; present: boolean }>;
 };
