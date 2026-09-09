@@ -2,7 +2,7 @@ import { useState } from "react";
 
 const PLATFORMS = ["hackerone", "bugcrowd", "intigriti", "generic"] as const;
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type QueueEntry } from "../api";
+import { API, api, type QueueEntry } from "../api";
 import { SEV_HEX } from "../plain";
 
 /**
@@ -78,15 +78,15 @@ export default function Queue({ scanId }: { scanId: number }) {
               {(f.reasons ?? []).map((r, i) => <li key={i}>{r}</li>)}
             </ul>
             <a className="btn sm ghost" target="_blank" rel="noreferrer"
-              href={`/api/findings/${f.id}/evidence`}>
+              href={`${API}/api/findings/${f.id}/evidence`}>
               Reproduction block
             </a>{" "}
             <a className="btn sm ghost" target="_blank" rel="noreferrer"
-              href={`/api/findings/${f.id}/disclosure`}>
+              href={`${API}/api/findings/${f.id}/disclosure`}>
               Full report
             </a>{" "}
             <a className="btn sm ghost" target="_blank" rel="noreferrer"
-              href={`/api/findings/${f.id}/template`}
+              href={`${API}/api/findings/${f.id}/template`}
               title="A nuclei template built from this finding's evidence — reusable on every future target">
               Nuclei template
             </a>
@@ -97,7 +97,7 @@ export default function Queue({ scanId }: { scanId: number }) {
               {PLATFORMS.map((p) => (
                 <a key={p} className="btn sm ghost" target="_blank" rel="noreferrer"
                   style={{ marginRight: 6 }}
-                  href={`/api/findings/${f.id}/submission?platform=${p}`}>
+                  href={`${API}/api/findings/${f.id}/submission?platform=${p}`}>
                   {p}
                 </a>
               ))}

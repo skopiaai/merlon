@@ -46,7 +46,13 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def _sqlite_default(col) -> str:
-    """A literal DEFAULT for ADD COLUMN, since SQLite requires one for NOT NULL."""
+    """A *constant* DEFAULT for ADD COLUMN.
+
+    SQLite requires the default in `ALTER TABLE ADD COLUMN ... NOT NULL` to be
+    a literal — `CURRENT_TIMESTAMP` is rejected there — so datetimes get NULL
+    here and are filled in afterwards by `_backfill_value`, which has no such
+    restriction because it runs as an UPDATE.
+    """
     name = col.type.__class__.__name__.upper()
     if "JSON" in name:
         # Best guess from the Python-side default: list columns get [], dicts {}.
@@ -54,15 +60,30 @@ def _sqlite_default(col) -> str:
         if factory in (list,) or getattr(factory, "__name__", "") == "list":
             return "'[]'"
         return "'{}'"
-    if any(k in name for k in ("INT", "FLOAT", "NUMERIC", "DECIMAL")):
-        return "0"
     if "BOOLEAN" in name:
+        return "0"
+    if any(k in name for k in ("INT", "FLOAT", "NUMERIC", "DECIMAL")):
         return "0"
     if "DATETIME" in name or "DATE" in name:
         return "NULL"
     if isinstance(getattr(col.default, "arg", None), str):
         return "'" + col.default.arg.replace("'", "''") + "'"
     return "''"
+
+
+def _backfill_value(col) -> str | None:
+    """What to write into existing rows, or None to leave them alone.
+
+    Differs from the DDL default in one place that matters: a timestamp column
+    on a legacy row has no correct value to recover, but it does need *a*
+    value, because the API declares those fields non-optional and a NULL there
+    fails response validation for every row in the list.
+    """
+    name = col.type.__class__.__name__.upper()
+    if "DATETIME" in name or "DATE" in name:
+        return "CURRENT_TIMESTAMP"
+    literal = _sqlite_default(col)
+    return None if literal == "NULL" else literal
 
 
 def ensure_schema(target=None) -> list[str]:
@@ -96,8 +117,55 @@ def ensure_schema(target=None) -> list[str]:
                 if not col.nullable:
                     ddl += f" NOT NULL DEFAULT {_sqlite_default(col)}"
                 conn.execute(text(ddl))
+
+                # Backfill. ALTER TABLE ADD COLUMN leaves every existing row
+                # NULL, and NULL is not what the model says the column holds —
+                # a JSON list column reads back as None rather than [], a
+                # boolean as None rather than False. The next response that
+                # serialises one of those rows fails validation, which presents
+                # as endpoints returning 500 on a database that upgraded
+                # "successfully". Filling the declared default at migration
+                # time is the difference between a schema that matches the
+                # models and one that only matches for rows written since.
+                fill = _backfill_value(col)
+                if fill is not None:
+                    conn.execute(text(
+                        f'UPDATE "{table.name}" SET "{col.name}" = {fill} '
+                        f'WHERE "{col.name}" IS NULL'))
+
                 applied.append(f"{table.name}.{col.name}")
+
+        # Rows that predate a column being given a default at all — including
+        # timestamps that were never populated — would otherwise serialise as
+        # None into a field the API declares non-optional.
+        _repair_nulls(conn, insp)
     return applied
+
+
+def _repair_nulls(conn, insp) -> None:
+    """Give legacy rows a usable value in columns the API treats as required.
+
+    Only touches NULLs, and only in columns the model declares non-nullable —
+    so it cannot overwrite real data. A row that was written before a column
+    existed has no correct value to restore; what it needs is a value the
+    application can serialise, so the record remains readable instead of
+    breaking every list endpoint that includes it.
+    """
+    from sqlalchemy import text
+
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        present = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.nullable or col.primary_key or col.name not in present:
+                continue
+            fill = _backfill_value(col)
+            if fill is None:
+                continue
+            conn.execute(text(
+                f'UPDATE "{table.name}" SET "{col.name}" = {fill} '
+                f'WHERE "{col.name}" IS NULL'))
 
 
 def init_db():

@@ -5,6 +5,26 @@
 cd "$(dirname "$0")"
 line() { printf "\n\033[1m=== %s ===\033[0m\n" "$1"; }
 
+line "is the running container older than your code?"
+# The commonest cause of "it stopped working" after an update: `docker compose
+# up -d` without --build reuses the existing image, so the container runs code
+# from before the change. Nothing errors — it just behaves like the old version.
+CREATED=$(docker inspect -f '{{.Created}}' bbwebapp-backend 2>/dev/null)
+if [ -n "$CREATED" ]; then
+  CREATED_TS=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${CREATED%%.*}" +%s 2>/dev/null \
+               || date -d "${CREATED%%.*}" +%s 2>/dev/null || echo 0)
+  NEWEST=$(find backend/app backend/requirements.txt -type f -newermt "@$CREATED_TS" 2>/dev/null | head -5)
+  if [ -n "$NEWEST" ] && [ "$CREATED_TS" != "0" ]; then
+    printf "  \033[33mSTALE\033[0m — these changed after the container was built:\n"
+    echo "$NEWEST" | sed 's/^/      /'
+    printf "  Rebuild with:  \033[1mdocker compose up -d --build\033[0m\n"
+  else
+    echo "  container is current with the source"
+  fi
+else
+  echo "  backend container does not exist — run ./start.sh"
+fi
+
 line "container status"
 docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}' 2>&1
 
