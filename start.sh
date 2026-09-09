@@ -9,6 +9,19 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# `set -e` exits on any unhandled non-zero status, and by default it does so
+# in complete silence — which is how this script came to print "checking
+# Docker…" and then just return you to the prompt with no explanation.
+#
+# This trap makes that impossible: any unexpected exit now says which line
+# died and what it returned. A startup script whose failure mode is "nothing
+# happens" is worse than one that crashes loudly.
+trap 'status=$?; if [ "$status" -ne 0 ]; then
+        printf "\n  \033[31m✗\033[0m start.sh stopped unexpectedly at line %s (exit %s).\n" \
+          "$LINENO" "$status"
+        printf "     This is a bug in the script, not in your setup — please report it.\n"
+      fi' ERR
+
 MODEL="${OLLAMA_MODEL:-qwen2.5:14b}"
 UI="http://127.0.0.1:5173"
 API="http://127.0.0.1:8000"
@@ -45,8 +58,15 @@ bold "Bug Bounty Webapp"
 command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Get Docker Desktop from docker.com."
 
 info "checking Docker…"
-run_timeout 15 docker info
-case $? in
+
+# Captured with `|| docker_status=$?` rather than run bare and read via `$?`.
+# Under `set -e` a bare failing command exits the script *before* the next line
+# runs, so the whole "Docker isn't running — start Docker Desktop" branch below
+# was unreachable: with Docker stopped, the script printed "checking Docker…"
+# and vanished. `||` marks the command as tested, which exempts it from `set -e`.
+docker_status=0
+run_timeout 15 docker info || docker_status=$?
+case $docker_status in
   0) ok "Docker is running" ;;
   124)
     die "The Docker daemon is not responding (it hung for 15s).
@@ -80,7 +100,14 @@ esac
 # just a full disk.
 if run_timeout 10 docker system df; then
   USED=$(docker system df 2>/dev/null | awk '/Build Cache/ {print $3}' || true)
-  [ -n "${USED:-}" ] && info "build cache: $USED"
+  # An `if` block rather than `[ ... ] && info ...`. The `&&` form is actually
+  # safe here — a failing command inside an `&&` list is exempt from `set -e` —
+  # but it stops being safe the moment such a line ends up last in a function or
+  # last in the script, where the test's status becomes the caller's. Not worth
+  # the footgun for one line.
+  if [ -n "${USED:-}" ]; then
+    info "build cache: $USED"
+  fi
 fi
 
 # ---------- 2. Ollama (optional — the app works without it) ----------
@@ -112,7 +139,12 @@ fi
 
 # ---------- 3. The stack ----------
 bold "Starting containers…"
-[ "${INSTALL_MODE:-binary}" = "source" ] && warn "INSTALL_MODE=source — compiling the toolchain, this takes a few minutes"
+# Same reasoning as the build-cache check above: an `if` block, for the same
+# "cannot become a footgun later" reason rather than because the `&&` form was
+# failing here.
+if [ "${INSTALL_MODE:-binary}" = "source" ]; then
+  warn "INSTALL_MODE=source — compiling the toolchain, this takes a few minutes"
+fi
 if ! docker compose up --build -d; then
   echo
   warn "Build failed. If the error mentioned 'input/output error' or 'no space left',"

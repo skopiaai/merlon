@@ -44,3 +44,6 @@ Thumbs.db
 templates/
 wordlists/
 *.log
+
+# Local state when running outside Docker (see backend/app/config.py)
+.sentinel-data/
