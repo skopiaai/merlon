@@ -132,9 +132,21 @@ TARGETS: dict[str, tuple[str, Severity, str]] = {
 }
 
 # Anything that looks like a credential is masked before it enters the report.
+#
+# Findings are stored, exported to SARIF, and pasted into tickets, so evidence
+# that quotes a live secret copies the exposure somewhere new. Naming the key is
+# enough for the owner to act.
 REDACT = [
+    # key=value / key: value, unquoted — .env files, config dumps, phpinfo.
     re.compile(r"(?i)((?:password|passwd|secret|token|api[_-]?key|access[_-]?key"
                r"|private[_-]?key|auth)\w*\s*[=:]\s*)(\S+)"),
+    # "key": "value" — JSON. Needed as its own pattern because the unquoted one
+    # cannot match it: after the key name comes a closing quote, not the
+    # separator, so `\w*\s*[=:]` fails and the secret sails through. Agent
+    # manifests and plugin descriptors are all JSON, which is exactly where
+    # credentials are now turning up.
+    re.compile(r"(?i)(\"[\w-]*(?:password|passwd|secret|token|key|auth)[\w-]*\""
+               r"\s*:\s*\")([^\"]{6,})(\")"),
     re.compile(r"(AKIA[0-9A-Z]{16})"),
     re.compile(r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]+"),
 ]
@@ -143,7 +155,11 @@ REDACT = [
 def redact(text: str) -> str:
     out = text
     for pattern in REDACT:
-        if pattern.groups >= 2:
+        if pattern.groups >= 3:
+            # Quoted form: keep the key and both quotes so the JSON still reads
+            # as JSON, replace only the value.
+            out = pattern.sub(lambda m: m.group(1) + "[redacted]" + m.group(3), out)
+        elif pattern.groups == 2:
             out = pattern.sub(lambda m: m.group(1) + "[redacted]", out)
         else:
             out = pattern.sub("[redacted]", out)

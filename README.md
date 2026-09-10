@@ -3,10 +3,10 @@
 **A self-hosted attack surface scanner and Hack The Box companion that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-827%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-888%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
-Sentinel runs 32 detection engines over a target, normalises everything they
+Sentinel runs 34 detection engines over a target, normalises everything they
 emit into one finding schema, re-tests each result to see whether it actually
 reproduces, and drafts the report. A **local** LLM does the triage — nothing
 leaves your machine. No cloud service, no telemetry, no account.
@@ -176,9 +176,29 @@ each can reach and reports endpoints that need no session at all, and records
 one user can read that belong to another. This is the bug class that pays most,
 and it is absent from scanners that hold a single session.
 
-**Modern surface** — AI and LLM application testing including prompt injection,
-MCP and agent tool-poisoning exposure, client-side supply chain, post-quantum
-TLS readiness, and SEO spam and cloaking across 14 languages.
+**AI and agent surface** — the fastest-growing bounty category, and four
+engines' worth of it:
+
+- *Prompt injection and system prompt leakage* on any LLM-backed endpoint.
+- *Exfiltration channels* — the part that turns injection into an actual
+  breach. If the assistant emits a markdown image, the victim's browser sends
+  the conversation to an attacker's server with no click and nothing on screen.
+  That is the Grafana AI-companion class; Sentinel tests the channel, weighs it
+  against your CSP, and writes the chain out so a triager can follow it.
+- *Invisible Unicode instructions* — payloads in the U+E0000 tag block render
+  as nothing in every UI a human reviews, and tokenise normally for the model.
+- *Agent manifests* — `ai-plugin.json`, `agent-card.json`, `llms.txt`,
+  `mcp.json`: the `swagger.json` of 2026, published with the same care.
+  Credential values are redacted out of the report; key names are kept.
+- *Vector databases and inference servers* — Qdrant, Weaviate, Chroma, Milvus,
+  Ollama, vLLM. They ship with auth off. An open one is not just readable: the
+  API that reads is the API that writes, so it is persistent memory poisoning
+  for every user of the assistant (ASI06), not a one-conversation injection.
+- *MCP tool poisoning*, client-side supply chain, post-quantum TLS readiness,
+  and SEO spam and cloaking across 14 languages.
+
+Mapped to both the OWASP LLM Top 10 (2025) and the Agentic Top 10 (2026), since
+a 2026 audit asks about ASI identifiers and LLM01 alone no longer answers it.
 
 **Prioritisation** — CISA KEV enrichment, so a CVE that is being exploited right
 now sorts above one that merely exists.
@@ -205,7 +225,7 @@ SENTINEL_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 827 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 888 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 

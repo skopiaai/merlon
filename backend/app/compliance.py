@@ -277,6 +277,51 @@ RULE_MAP: dict[str, Controls] = {
     "llm-unbounded-consumption": Controls(
         "A04:2021 Insecure Design", ["V13.4.1", "V11.1.4"], ["A.8.6"],
         ["13.10"], "AI system security (OWASP LLM10)", ["CWE-770"]),
+    # AI output handling and exfiltration channels (aiexfil).
+    #
+    # These map to two OWASP families at once: the LLM Top 10 (2025) for the
+    # model-side issue, and the Agentic Top 10 (2026) for what an agent does
+    # with it. Both are named in the gigw field because a reader trying to
+    # place the finding needs the agentic identifier — ASI01 Goal Hijack is
+    # what a 2026 audit will ask about, and LLM01 alone no longer answers it.
+    "ai-exfil-markdown-image": Controls(
+        "A03:2021 Injection", ["V5.3.3", "V5.3.1"], ["A.8.28", "A.8.26"],
+        ["16.11"], "AI system security (OWASP LLM05 / LLM01, ASI01)",
+        ["CWE-79", "CWE-116"]),
+    "ai-exfil-markdown-link": Controls(
+        "A03:2021 Injection", ["V5.3.3"], ["A.8.28"],
+        ["16.11"], "AI system security (OWASP LLM05, ASI01)",
+        ["CWE-79", "CWE-116"]),
+    "ai-exfil-html-image": Controls(
+        "A03:2021 Injection", ["V5.3.3", "V5.3.1"], ["A.8.28", "A.8.26"],
+        ["16.11"], "AI system security (OWASP LLM05 / LLM01, ASI01)",
+        ["CWE-79", "CWE-116"]),
+    "ai-output-xss": Controls(
+        "A03:2021 Injection", ["V5.3.3", "V5.3.1"], ["A.8.28"],
+        ["16.11"], "AI system security (OWASP LLM05)", ["CWE-79"]),
+    "ai-unicode-smuggling": Controls(
+        "A03:2021 Injection", ["V5.1.1", "V5.2.1"], ["A.8.28", "A.8.26"],
+        ["16.11"], "AI system security (OWASP LLM01, ASI01)",
+        ["CWE-176", "CWE-1289"]),
+    "ai-indirect-sink": Controls(
+        "A04:2021 Insecure Design", ["V5.1.1"], ["A.8.26"],
+        ["16.11"], "AI system security (OWASP LLM01, ASI01)", ["CWE-77"]),
+
+    # Agent manifests and RAG infrastructure (aisurface).
+    "ai-manifest": Controls(
+        "A05:2021 Security Misconfiguration", ["V14.3.2", "V1.14.6"],
+        ["A.8.4", "A.5.14"], ["3.3", "16.4"],
+        "AI system security (OWASP LLM03, ASI04)", ["CWE-200"]),
+    "ai-vector-open": Controls(
+        "A01:2021 Broken Access Control", ["V4.1.1", "V1.4.4"],
+        ["A.5.15", "A.8.3", "A.8.4"], ["3.3", "6.8"],
+        "AI system security (OWASP LLM08 / LLM04, ASI06)",
+        ["CWE-306", "CWE-284"]),
+    "ai-inference-open": Controls(
+        "A01:2021 Broken Access Control", ["V4.1.1", "V13.4.1"],
+        ["A.5.15", "A.8.6"], ["3.3", "13.10"],
+        "AI system security (OWASP LLM10)", ["CWE-306"]),
+
     # post-quantum readiness
     "pqc-not-ready": Controls(
         "A02:2021 Cryptographic Failures", ["V6.2.1", "V9.1.2"],
