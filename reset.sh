@@ -10,7 +10,7 @@
 # or when a database has got into a state you would rather not debug.
 #
 # None of this is in git — the database lives in a Docker volume and
-# .parapet-data/ is ignored — so this is about your machine, not the
+# .merlon-data/ is ignored — so this is about your machine, not the
 # repository. Nothing here touches your code or your commits.
 
 set -euo pipefail
@@ -79,7 +79,7 @@ if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
     fi
     if [ -n "${vol:-}" ]; then
       docker run --rm -v "${vol}:/data" alpine:3 \
-        sh -c 'rm -f /data/parapet.db /data/parapet.db-wal /data/parapet.db-shm /data/update-state.json;
+        sh -c 'rm -f /data/merlon.db /data/merlon.db-wal /data/merlon.db-shm /data/update-state.json;
                rm -rf /data/artifacts /data/htb-knowledge' >/dev/null 2>&1 \
         && ok "database and artifacts removed, templates kept" \
         || warn "could not write to volume $vol"
@@ -95,17 +95,17 @@ else
   warn "Docker isn't running — clearing local files only"
 fi
 
-# The non-Docker path: config.py falls back to .parapet-data/ when /data is
+# The non-Docker path: config.py falls back to .merlon-data/ when /data is
 # not writable, which is what happens when you run the backend directly.
-if [ -d .parapet-data ]; then
+if [ -d .merlon-data ]; then
   if [ "$KEEP_TEMPLATES" -eq 1 ]; then
-    rm -f .parapet-data/parapet.db .parapet-data/parapet.db-wal \
-          .parapet-data/parapet.db-shm
-    rm -rf .parapet-data/artifacts
+    rm -f .merlon-data/merlon.db .merlon-data/merlon.db-wal \
+          .merlon-data/merlon.db-shm
+    rm -rf .merlon-data/artifacts
   else
-    rm -rf .parapet-data
+    rm -rf .merlon-data
   fi
-  ok "local .parapet-data cleared"
+  ok "local .merlon-data cleared"
 fi
 
 echo

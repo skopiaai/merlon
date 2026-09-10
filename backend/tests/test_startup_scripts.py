@@ -206,14 +206,21 @@ def _compose() -> dict:
 def test_compose_pins_the_project_name():
     """Without this the project name comes from the checkout directory, so two
     people with differently-named folders get differently-named volumes."""
-    assert _compose().get("name") == "parapet"
+    assert _compose().get("name") == "merlon"
+
+
+# Every name this project has shipped under, newest first. `start.sh` must
+# clean up all of them: the containers from the *previous* generation are the
+# ones actually running on a machine that upgraded last time, and those are
+# what hold ports 8000 and 5173.
+PREVIOUS_GENERATIONS = ["parapet", "bbwebapp"]
 
 
 def test_container_names_carry_the_current_brand():
     for service, spec in _compose()["services"].items():
         name = spec.get("container_name")
         if name:
-            assert name.startswith("parapet-"), (
+            assert name.startswith("merlon-"), (
                 f"service {service} still uses the pre-rename container name {name!r}")
 
 
@@ -227,9 +234,10 @@ def test_startup_removes_every_pre_rename_container():
     listed = set(match.group(1).split())
 
     expected = {
-        spec["container_name"].replace("parapet-", "bbwebapp-")
+        spec["container_name"].replace("merlon-", old + "-")
         for spec in _compose()["services"].values()
         if spec.get("container_name")
+        for old in PREVIOUS_GENERATIONS
     }
     missing = expected - listed
     assert not missing, (
@@ -238,7 +246,32 @@ def test_startup_removes_every_pre_rename_container():
 
 
 def test_diagnose_still_finds_a_pre_rename_install():
-    """Otherwise the first thing an upgrading user is told is 'no container'."""
+    """Otherwise the first thing an upgrading user is told is 'no container'.
+
+    Which is both wrong and the opposite of useful, given they are running
+    diagnose.sh precisely because the upgrade did not work.
+    """
     text = (ROOT / "diagnose.sh").read_text()
-    assert "parapet-backend" in text
-    assert "bbwebapp-backend" in text, "no fallback to the pre-rename name"
+    assert "merlon-backend" in text
+    for old in PREVIOUS_GENERATIONS:
+        assert f"{old}-backend" in text, f"no fallback to the {old} container name"
+
+
+def test_favicon_matches_the_react_logo():
+    """Two copies of the same artwork, so they can drift.
+
+    The favicon is a standalone file (index.html cannot import a component) and
+    the header uses the React one. A logo redesign that updates only the tab
+    icon, or only the header, is the kind of thing nobody notices for months.
+    """
+    import re
+
+    logo = (ROOT / "frontend" / "src" / "Logo.tsx").read_text()
+    favicon = (ROOT / "frontend" / "public" / "favicon.svg").read_text()
+
+    paths = re.findall(r'd="(M[^"]+)"', logo)
+    assert paths, "no paths found in Logo.tsx — has the mark changed shape?"
+    for d in paths:
+        assert d in favicon, (
+            f"favicon.svg is missing a path from Logo.tsx: {d[:40]}… "
+            f"— the two copies of the mark have drifted apart")

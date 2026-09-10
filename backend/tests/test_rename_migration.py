@@ -1,15 +1,19 @@
 """The upgrade path from the old project name.
 
-This project was called Sentinel before it was called Parapet. A rename is a
-cosmetic change everywhere except the two places where it silently destroys
-user data:
+This project has been renamed twice: Sentinel, then Parapet, now Merlon. A
+rename is a cosmetic change everywhere except the two places where it silently
+destroys user data:
 
-  * `SENTINEL_*` environment variables in someone's existing `.env` — an
-    ignored rate limit means the next scan runs at the default rate against a
-    target the operator deliberately throttled;
-  * `sentinel.db` and `.sentinel-data/` — a fresh empty database created beside
-    a populated one presents as "the upgrade deleted all my scans" while the
-    real data sits untouched, one filename away.
+  * old-prefix environment variables in someone's existing `.env` — an ignored
+    rate limit means the next scan runs at the default rate against a target
+    the operator deliberately throttled;
+  * the database and data directory — a fresh empty database created beside a
+    populated one presents as "the upgrade deleted all my scans" while the real
+    data sits untouched, one filename away.
+
+The fallback is a *chain*, not one hop. A single-step shim would have stranded
+anyone already running Parapet, which by the time of the second rename included
+the only person using it.
 
 These tests exist because the rename commit broke the compatibility shim while
 writing it: a project-wide find-and-replace rewrote the *legacy* constants too,
@@ -25,6 +29,8 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+
+import pytest
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -69,33 +75,41 @@ def _run_in(tmp_path: Path, env: dict[str, str] | None = None,
     return result.stdout.strip()
 
 
-def _seed_legacy_install(tmp_path: Path) -> None:
-    """A pre-rename install: populated database, WAL sibling, artifacts."""
-    legacy = tmp_path / ".sentinel-data"
+LEGACY_NAMES = ["parapet", "sentinel"]
+
+
+def _seed_legacy_install(tmp_path: Path, name: str = "sentinel") -> None:
+    """An install under a previous name: database, WAL sibling, artifacts."""
+    legacy = tmp_path / f".{name}-data"
     (legacy / "artifacts").mkdir(parents=True)
-    (legacy / "sentinel.db").write_text("PRECIOUS SCAN HISTORY")
-    (legacy / "sentinel.db-wal").write_text("wal contents")
+    (legacy / f"{name}.db").write_text("PRECIOUS SCAN HISTORY")
+    (legacy / f"{name}.db-wal").write_text("wal contents")
     (legacy / "artifacts" / "evidence.txt").write_text("old evidence")
 
 
-def test_legacy_data_directory_is_adopted(tmp_path: Path):
-    """`.sentinel-data/` becomes `.parapet-data/`, contents intact."""
-    _seed_legacy_install(tmp_path)
+@pytest.mark.parametrize("legacy", LEGACY_NAMES)
+def test_legacy_data_directory_is_adopted(tmp_path: Path, legacy: str):
+    """Every previous name is adopted, contents intact.
+
+    Parametrised over the whole chain: the Parapet case is the one that would
+    have silently stranded the only real install if this were a single hop.
+    """
+    _seed_legacy_install(tmp_path, legacy)
     tree = _isolated_tree(tmp_path)
     out = _run_in(tmp_path, code=f"""
         import sys; sys.path.insert(0, {str(tree)!r})
         from app import config
         print(config.DB_PATH.name)
         print(config.DB_PATH.read_text())
-        print((config.DB_PATH.parent / 'parapet.db-wal').exists())
+        print((config.DB_PATH.parent / 'merlon.db-wal').exists())
         print((config.ARTIFACT_DIR / 'evidence.txt').exists())
     """)
     name, contents, wal, artifact = out.splitlines()
-    assert name == "parapet.db"
+    assert name == "merlon.db"
     assert contents == "PRECIOUS SCAN HISTORY", "scan history was lost on rename"
     assert wal == "True", "the WAL sibling was left behind — SQLite may refuse to open"
     assert artifact == "True", "captured evidence was lost on rename"
-    assert not (tmp_path / ".sentinel-data").exists()
+    assert not (tmp_path / f".{legacy}-data").exists()
 
 
 def test_a_fresh_install_uses_the_new_names(tmp_path: Path):
@@ -106,15 +120,15 @@ def test_a_fresh_install_uses_the_new_names(tmp_path: Path):
         print(config.DB_PATH.name)
         print(config.DB_PATH.parent.name)
     """)
-    assert out.splitlines() == ["parapet.db", ".parapet-data"]
+    assert out.splitlines() == ["merlon.db", ".merlon-data"]
 
 
 def test_existing_new_data_is_not_overwritten_by_legacy(tmp_path: Path):
     """If both exist, the current one wins and neither is clobbered."""
     _seed_legacy_install(tmp_path)
-    current = tmp_path / ".parapet-data"
+    current = tmp_path / ".merlon-data"
     current.mkdir()
-    (current / "parapet.db").write_text("CURRENT DATA")
+    (current / "merlon.db").write_text("CURRENT DATA")
     tree = _isolated_tree(tmp_path)
 
     out = _run_in(tmp_path, code=f"""
@@ -127,37 +141,41 @@ def test_existing_new_data_is_not_overwritten_by_legacy(tmp_path: Path):
     assert (tmp_path / ".sentinel-data" / "sentinel.db").exists()
 
 
-def test_legacy_environment_variables_are_honoured():
-    """An old `.env` must keep working after the rename."""
-    import os
+ALL_PREFIXES = ["MERLON_", "PARAPET_", "SENTINEL_"]
 
+
+@pytest.fixture
+def clean_env(monkeypatch):
+    """No rate-limit variable from any generation leaking in from the shell."""
+    for prefix in ALL_PREFIXES:
+        monkeypatch.delenv(prefix + "MAX_RATE_LIMIT", raising=False)
+    yield monkeypatch
     from app import config
-    saved = os.environ.get("SENTINEL_MAX_RATE_LIMIT")
-    try:
-        os.environ["SENTINEL_MAX_RATE_LIMIT"] = "42"
-        os.environ.pop("PARAPET_MAX_RATE_LIMIT", None)
-        importlib.reload(config)
-        assert config.MAX_RATE_LIMIT == 42
-    finally:
-        os.environ.pop("SENTINEL_MAX_RATE_LIMIT", None)
-        if saved is not None:
-            os.environ["SENTINEL_MAX_RATE_LIMIT"] = saved
-        importlib.reload(config)
+    importlib.reload(config)
 
 
-def test_new_environment_variables_take_precedence():
-    import os
-
+@pytest.mark.parametrize("prefix", ["PARAPET_", "SENTINEL_"])
+def test_every_previous_prefix_is_honoured(clean_env, prefix: str):
+    """An old `.env` must keep working, whichever generation wrote it."""
     from app import config
-    try:
-        os.environ["SENTINEL_MAX_RATE_LIMIT"] = "42"
-        os.environ["PARAPET_MAX_RATE_LIMIT"] = "99"
-        importlib.reload(config)
-        assert config.MAX_RATE_LIMIT == 99
-    finally:
-        os.environ.pop("SENTINEL_MAX_RATE_LIMIT", None)
-        os.environ.pop("PARAPET_MAX_RATE_LIMIT", None)
-        importlib.reload(config)
+
+    clean_env.setenv(prefix + "MAX_RATE_LIMIT", "42")
+    importlib.reload(config)
+    assert config.MAX_RATE_LIMIT == 42
+
+
+def test_prefixes_resolve_newest_first(clean_env):
+    """With every generation set at once, the current name must win."""
+    from app import config
+
+    clean_env.setenv("SENTINEL_MAX_RATE_LIMIT", "11")
+    clean_env.setenv("PARAPET_MAX_RATE_LIMIT", "22")
+    importlib.reload(config)
+    assert config.MAX_RATE_LIMIT == 22, "the newer legacy prefix should win"
+
+    clean_env.setenv("MERLON_MAX_RATE_LIMIT", "33")
+    importlib.reload(config)
+    assert config.MAX_RATE_LIMIT == 33
 
 
 def test_the_compatibility_shim_has_not_collapsed():
@@ -169,20 +187,27 @@ def test_the_compatibility_shim_has_not_collapsed():
     """
     from app import config
 
-    assert config._LEGACY_PREFIX != config._PREFIX
-    assert config._LEGACY_PREFIX == "SENTINEL_"
-    assert config._LEGACY_NAME == "sentinel"
+    assert config._PREFIX == "MERLON_"
+    assert config._NAME == "merlon"
+    # Every previous generation is still listed, newest first, and none of them
+    # has been rewritten into the current name.
+    assert config._LEGACY_NAMES == ["parapet", "sentinel"]
+    assert config._PREFIX not in config._LEGACY_PREFIXES
+    assert config._NAME not in config._LEGACY_NAMES
 
 
 def test_env_helper_prefers_new_then_legacy_then_default(monkeypatch):
     from app import config
 
-    monkeypatch.delenv("PARAPET_WIDGET", raising=False)
-    monkeypatch.delenv("SENTINEL_WIDGET", raising=False)
+    for prefix in ALL_PREFIXES:
+        monkeypatch.delenv(prefix + "WIDGET", raising=False)
     assert config.env("WIDGET", "fallback") == "fallback"
 
-    monkeypatch.setenv("SENTINEL_WIDGET", "old")
-    assert config.env("WIDGET", "fallback") == "old"
+    monkeypatch.setenv("SENTINEL_WIDGET", "oldest")
+    assert config.env("WIDGET", "fallback") == "oldest"
 
-    monkeypatch.setenv("PARAPET_WIDGET", "new")
-    assert config.env("WIDGET", "fallback") == "new"
+    monkeypatch.setenv("PARAPET_WIDGET", "middle")
+    assert config.env("WIDGET", "fallback") == "middle"
+
+    monkeypatch.setenv("MERLON_WIDGET", "current")
+    assert config.env("WIDGET", "fallback") == "current"

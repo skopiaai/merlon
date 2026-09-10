@@ -38,12 +38,12 @@ jobs:
         env:
           # The app creates its data directory at import time; point it at a
           # temporary path so CI doesn't need /data to exist.
-          PARAPET_DB_PATH: /tmp/ci/parapet.db
-          PARAPET_ARTIFACT_DIR: /tmp/ci/artifacts
-          PARAPET_TEMPLATE_DIR: /tmp/ci/templates
-          PARAPET_UPDATE_STATE: /tmp/ci/update-state.json
+          MERLON_DB_PATH: /tmp/ci/merlon.db
+          MERLON_ARTIFACT_DIR: /tmp/ci/artifacts
+          MERLON_TEMPLATE_DIR: /tmp/ci/templates
+          MERLON_UPDATE_STATE: /tmp/ci/update-state.json
           # Never let CI reach out to update template repositories.
-          PARAPET_AUTO_UPDATE: "0"
+          MERLON_AUTO_UPDATE: "0"
         run: pytest -q --ignore=tests/integration
 
   frontend:

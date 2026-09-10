@@ -6,7 +6,7 @@
  * missed two of those and broke startup, so the parts that *can* be defined
  * once are defined here.
  */
-export const PRODUCT_NAME = "Parapet";
+export const PRODUCT_NAME = "Merlon";
 export const MAKER_NAME = "Skopia AI";
 
 /** For <title>, and anywhere the two need to read as one string. */

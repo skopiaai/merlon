@@ -15,24 +15,38 @@ from pathlib import Path
 # an unconfigured checkout still works.
 _CONTAINER_DATA = Path("/data")
 
-# This project was called Sentinel before it was called Parapet. Anyone who set
-# up a `.env` under the old name should not have their configuration silently
-# ignored on upgrade — an ignored rate limit means the scan runs at the default
-# rate against a target the operator deliberately throttled, which is both hard
-# to notice and the sort of thing that gets someone's IP blocked.
+# This project has been renamed twice: Sentinel, then Parapet, now Merlon.
+# Each rename is cosmetic everywhere except configuration and data, where
+# getting it wrong silently destroys someone's work — an ignored rate limit
+# means the next scan runs at full speed against a target the operator
+# deliberately throttled, and a fresh database beside a populated one reads as
+# "the upgrade deleted all my scans".
 #
-# The legacy prefix is spelled in pieces so a future project-wide
-# find-and-replace cannot quietly collapse it into the new one. That is not
-# hypothetical: the rename commit did exactly that, turning this whole shim
-# into a no-op that still read like it worked.
-_PREFIX = "PARAPET_"
-_LEGACY_PREFIX = "SENT" + "INEL_"
-_LEGACY_NAME = "sent" + "inel"
+# So the old names are a *list*, checked newest-first, not a single fallback.
+# A one-step shim would have stranded anyone already running Parapet, which by
+# the time of this rename included the only person using it.
+#
+# The legacy names are spelled in fragments so a project-wide find-and-replace
+# cannot quietly collapse them into the current one. That is not hypothetical:
+# the Parapet rename did exactly that, turning the whole shim into a no-op that
+# still read like it worked, and every test that checked only the new name
+# still passed.
+_NAME = "merlon"
+_PREFIX = "MERLON_"
+_LEGACY_NAMES = ["para" + "pet", "sent" + "inel"]          # newest first
+_LEGACY_PREFIXES = [n.upper() + "_" for n in _LEGACY_NAMES]
 
 
 def env(name: str, default: str | None = None) -> str | None:
-    """Read `PARAPET_<name>`, falling back to the pre-rename `SENTINEL_<name>`."""
-    return os.getenv(_PREFIX + name) or os.getenv(_LEGACY_PREFIX + name) or default
+    """Read `MERLON_<name>`, falling back through every previous project name."""
+    value = os.getenv(_PREFIX + name)
+    if value:
+        return value
+    for prefix in _LEGACY_PREFIXES:
+        value = os.getenv(prefix + name)
+        if value:
+            return value
+    return default
 
 
 def _fallback_root() -> Path:
@@ -43,19 +57,23 @@ def _fallback_root() -> Path:
     drops to the system temp directory only if even that is read-only.
     """
     root = Path(__file__).resolve().parents[2]
-    local = root / ".parapet-data"
+    local = root / f".{_NAME}-data"
 
-    # Adopt the pre-rename directory rather than starting empty beside it.
-    # Renaming a product should not look, to the person using it, like it
+    # Adopt the newest pre-rename directory rather than starting empty beside
+    # it. Renaming a product should not look, to the person using it, like it
     # deleted every scan they had ever run.
-    legacy = root / f".{_LEGACY_NAME}-data"
-    if legacy.is_dir() and not local.exists():
-        try:
-            legacy.rename(local)
-        except OSError:
-            # Cannot rename (permissions, a mount boundary) — keep using the
-            # old directory rather than losing the data.
-            return legacy
+    if not local.exists():
+        for old in _LEGACY_NAMES:
+            legacy = root / f".{old}-data"
+            if not legacy.is_dir():
+                continue
+            try:
+                legacy.rename(local)
+            except OSError:
+                # Cannot rename (permissions, a mount boundary) — keep using
+                # the old directory rather than losing the data.
+                return legacy
+            break
 
     try:
         local.mkdir(parents=True, exist_ok=True)
@@ -64,7 +82,7 @@ def _fallback_root() -> Path:
         probe.unlink()
         return local
     except OSError:
-        return Path(tempfile.gettempdir()) / "parapet-data"
+        return Path(tempfile.gettempdir()) / f"{_NAME}-data"
 
 
 def _writable(path: Path) -> bool:
@@ -79,23 +97,29 @@ def _db_in(root: Path) -> Path:
     """The database file, adopting the pre-rename name if that is what exists.
 
     Inside the container this matters most: the volume survives the upgrade, so
-    a fresh `parapet.db` next to a populated `sentinel.db` would present as a
+    a fresh `merlon.db` next to a populated `parapet.db` would present as a
     total loss of history while the real data sat untouched one filename away.
 
     SQLite's -wal and -shm siblings are renamed with it. Leaving them behind
     would be worse than not renaming at all: SQLite would treat an orphaned WAL
     as belonging to the new file and could refuse to open it.
     """
-    current = root / "parapet.db"
-    legacy = root / f"{_LEGACY_NAME}.db"
-    if legacy.exists() and not current.exists():
+    current = root / f"{_NAME}.db"
+    if current.exists():
+        return current
+
+    for old in _LEGACY_NAMES:
+        legacy = root / f"{old}.db"
+        if not legacy.exists():
+            continue
         try:
             for suffix in ("", "-wal", "-shm"):
-                old = Path(str(legacy) + suffix)
-                if old.exists():
-                    old.rename(Path(str(current) + suffix))
+                stale = Path(str(legacy) + suffix)
+                if stale.exists():
+                    stale.rename(Path(str(current) + suffix))
         except OSError:
             return legacy
+        return current
     return current
 
 

@@ -13,9 +13,13 @@ line "is the running container older than your code?"
 # has not been through ./start.sh since the rename — otherwise the first thing
 # it would say to an upgrading user is "backend container does not exist",
 # which is both wrong and the opposite of helpful.
-BACKEND_CONTAINER=parapet-backend
-docker container inspect "$BACKEND_CONTAINER" >/dev/null 2>&1 \
-  || BACKEND_CONTAINER=bbwebapp-backend
+BACKEND_CONTAINER=merlon-backend
+for candidate in merlon-backend parapet-backend bbwebapp-backend; do
+  if docker container inspect "$candidate" >/dev/null 2>&1; then
+    BACKEND_CONTAINER="$candidate"
+    break
+  fi
+done
 
 CREATED=$(docker inspect -f '{{.Created}}' "$BACKEND_CONTAINER" 2>/dev/null)
 if [ -n "$CREATED" ]; then

@@ -2,7 +2,7 @@
 
 What this is
 ------------
-A guided solve loop. You spawn a box on your own account, point Parapet at it,
+A guided solve loop. You spawn a box on your own account, point Merlon at it,
 and at every step it tells you what it can see, what that implies, and the exact
 command to run next. When you are stuck it will escalate a hint from a nudge to
 the literal command — but every one of those hints is *derived from your own

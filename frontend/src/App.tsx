@@ -5,6 +5,7 @@ import Simple from "./pages/Simple";
 import Pro from "./pages/Pro";
 import CTF from "./pages/CTF";
 import HTB from "./pages/HTB";
+import Logo from "./Logo";
 import { MAKER_NAME, PRODUCT_NAME } from "./brand";
 
 type Tab = "scan" | "console" | "ctf" | "htb";
@@ -73,7 +74,7 @@ export default function App() {
               a hunt through the tree — which is how the last rename managed to
               miss the container names. */}
           <button className="brand" onClick={() => setTab("scan")}>
-            <span className="dot" />
+            <Logo size={26} />
             <span className="brand-lockup">
               <span className="brand-name">{PRODUCT_NAME}</span>
               <span className="brand-maker">by {MAKER_NAME}</span>

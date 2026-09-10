@@ -140,13 +140,13 @@ h1, h2, h3, .display { font-family: var(--font-display); letter-spacing: 0.02em;
   letter-spacing: 0.12em; text-transform: uppercase;
   text-align: left;
 }
-.brand .dot {
-  width: 8px; height: 8px; background: var(--neon); border-radius: 1px;
-  box-shadow: var(--glow); animation: pulse 2.4s ease-in-out infinite;
-  /* Aligns with the name rather than the centre of the two-line block —
-     otherwise it floats between the lines and reads as unattached. */
-  align-self: flex-start; margin-top: 5px;
+.brand svg {
+  /* The mark replaces the old pulsing dot. Aligned to the top of the lockup so
+     it sits with the name rather than floating between the two lines. */
+  align-self: flex-start; margin-top: 1px;
+  color: var(--ink);
 }
+.brand:hover svg { opacity: 0.85; }
 .brand-lockup { display: flex; flex-direction: column; gap: 1px; }
 .brand-name { line-height: 1.05; }
 .brand-maker {

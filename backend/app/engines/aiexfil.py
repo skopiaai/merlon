@@ -61,7 +61,7 @@ from .registry import EngineSpec, register
 # A domain that cannot resolve, in a TLD reserved by RFC 2606 for exactly this.
 # The test is whether the application *renders or fetches* it — never whether
 # anything arrives, because nothing ever will.
-CANARY_HOST = "parapet-exfil-probe.invalid"
+CANARY_HOST = "merlon-exfil-probe.invalid"
 CANARY_TOKEN = "SNTL7731"
 
 # --------------------------------------------------------------- probes

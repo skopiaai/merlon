@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+  <!-- The Merlon mark. Kept in sync with src/Logo.tsx by
+       tests/test_startup_scripts.py, which fails if the two paths diverge. -->
+  <rect width="24" height="24" rx="5" fill="#06121a"/>
+  <path d="M2 6h4.5v4H2V6Z M17.5 6H22v4h-4.5V6Z" fill="#d8f2ff" opacity="0.55"/>
+  <path d="M9.75 3h4.5v7h-4.5V3Z" fill="#00f0ff"/>
+  <path d="M2 12h20v3H2v-3Z" fill="#d8f2ff" opacity="0.55"/>
+  <path d="M7.75 7.6h1.25" stroke="#00f0ff" stroke-width="1.6" stroke-linecap="square" opacity="0.9"/>
+  <path d="M4 17h16v2.5H4V17Z" fill="#d8f2ff" opacity="0.28"/>
+</svg>

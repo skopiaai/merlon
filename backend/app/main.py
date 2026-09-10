@@ -114,7 +114,7 @@ async def lifespan(_: FastAPI):
         refresh.cancel()
 
 
-app = FastAPI(title="Parapet", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Merlon", version="0.1.0", lifespan=lifespan)
 
 # Local-only UI. The whole stack binds to 127.0.0.1 in compose.
 app.add_middleware(

@@ -222,7 +222,7 @@ def test_text_extraction_survives_junk():
 
 
 def test_injection_requires_the_canary():
-    assert injection_worked("PARAPET-PROBE-4417")
+    assert injection_worked("MERLON-PROBE-4417")
 
 
 def test_a_model_that_refuses_has_passed():

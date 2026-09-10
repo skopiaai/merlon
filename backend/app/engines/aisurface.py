@@ -382,7 +382,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
                         f"conversation-scoped prompt injection; it is persistent, "
                         f"and it is attributed to the vendor's own knowledge base "
                         f"(ASI06).\n\n"
-                        f"Parapet only read. It did not write, and you should "
+                        f"Merlon only read. It did not write, and you should "
                         f"confirm writability by asking the owner rather than by "
                         f"inserting a document."
                         + (f"\n\nCollections present: {', '.join(collections[:15])}"

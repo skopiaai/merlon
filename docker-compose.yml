@@ -1,6 +1,6 @@
-name: parapet
+name: merlon
 
-# Parapet — offline security recon & triage platform
+# Merlon — offline security recon & triage platform
 #
 # NOTE: services bind to 127.0.0.1 only. This stack is not meant to be
 # reachable from your network. Do not change these to 0.0.0.0.
@@ -13,7 +13,7 @@ services:
         # "binary" (fast, default) or "source" (compiles with Go).
         # Override:  INSTALL_MODE=source docker compose up --build
         INSTALL_MODE: ${INSTALL_MODE:-binary}
-    container_name: parapet-backend
+    container_name: merlon-backend
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -24,20 +24,20 @@ services:
       - app-data:/data
       - nuclei-templates:/root/nuclei-templates
     environment:
-      PARAPET_DB_PATH: /data/parapet.db
-      PARAPET_ARTIFACT_DIR: /data/artifacts
+      MERLON_DB_PATH: /data/merlon.db
+      MERLON_ARTIFACT_DIR: /data/artifacts
       # Community template repos and takeover fingerprints live on the same
       # named volume, so a container rebuild doesn't re-clone several hundred
       # megabytes.
-      PARAPET_TEMPLATE_DIR: /data/templates
-      PARAPET_UPDATE_STATE: /data/update-state.json
+      MERLON_TEMPLATE_DIR: /data/templates
+      MERLON_UPDATE_STATE: /data/update-state.json
       # Refresh templates, fingerprints and tool binaries every 24h. Set to 0
       # if you'd rather press the button yourself.
-      PARAPET_AUTO_UPDATE: "${PARAPET_AUTO_UPDATE:-1}"
+      MERLON_AUTO_UPDATE: "${MERLON_AUTO_UPDATE:-1}"
       # Ollama runs on the macOS host, not in a container.
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
-      PARAPET_MAX_CONCURRENT_SCANS: "2"
+      MERLON_MAX_CONCURRENT_SCANS: "2"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -48,7 +48,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: parapet-frontend
+    container_name: merlon-frontend
     ports:
       - "127.0.0.1:5173:5173"
     environment:
@@ -70,7 +70,7 @@ services:
 
   juiceshop:
     image: bkimminich/juice-shop:latest
-    container_name: parapet-lab-juiceshop
+    container_name: merlon-lab-juiceshop
     profiles: ["lab"]
     networks:
       lab:
@@ -82,7 +82,7 @@ services:
 
   dvwa:
     image: vulnerables/web-dvwa:latest
-    container_name: parapet-lab-dvwa
+    container_name: merlon-lab-dvwa
     profiles: ["lab"]
     networks:
       lab:

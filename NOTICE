@@ -1,4 +1,4 @@
-Parapet
+Merlon
 Copyright 2026 Skopia AI
 
 This product includes software developed by the copyright holder and
@@ -8,7 +8,7 @@ distributed under the Apache License, Version 2.0. See LICENSE.
 THIRD-PARTY SOFTWARE
 ================================================================================
 
-Parapet is an orchestrator. Most of the actual scanning is done by established
+Merlon is an orchestrator. Most of the actual scanning is done by established
 open-source tools, invoked as separate processes. This project claims no
 authorship of them, and the credit for what this tool finds substantially
 belongs to their maintainers.

@@ -78,7 +78,7 @@ run_timeout() {
   wait "$pid" 2>/dev/null
 }
 
-bold "Parapet · by Skopia AI"
+bold "Merlon · by Skopia AI"
 
 # ---------- 1. Docker ----------
 command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Get Docker Desktop from docker.com."
@@ -166,7 +166,7 @@ else
   # Offer to install rather than just reporting the absence: "one command and
   # everything happens" is the point of this script.
   warn "Ollama isn't installed — it powers AI triage and JS analysis."
-  if [ "${PARAPET_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Darwin" ] \
+  if [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Darwin" ] \
      && command -v brew >/dev/null 2>&1; then
     info "installing via Homebrew (ctrl-C to skip)…"
     if brew install ollama >/dev/null 2>&1; then
@@ -178,7 +178,7 @@ else
     else
       warn "Homebrew install failed. Get it from ollama.com; the app runs without it."
     fi
-  elif [ "${PARAPET_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
+  elif [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
     info "installing via the official script (ctrl-C to skip)…"
     if curl -fsSL https://ollama.com/install.sh | sh >/tmp/ollama-install.log 2>&1; then
       ok "Ollama installed"
@@ -202,18 +202,23 @@ export OLLAMA_MODEL="$MODEL"
 # ---------- 2b. clear containers left by the pre-rename project ----------
 #
 # `container_name:` is a global Docker name, not a project-scoped one. Pinning
-# `name: parapet` in compose created a new project that still wanted the same
+# `name: merlon` in compose created a new project that still wanted the same
 # container names, so the first upgrade run died with:
 #
 #   Conflict. The container name "/bbwebapp-backend" is already in use
 #
-# Renaming the containers to parapet-* fixes the collision but not the real
-# problem: the old containers are still running and still holding ports 8000
-# and 5173, so the new ones would fail to bind instead. They have to go.
+# Renaming the containers fixes the collision but not the real problem: the old
+# ones are still running and still holding ports 8000 and 5173, so the new ones
+# would fail to bind instead. They have to go.
 #
 # Only containers this project created are touched, by exact name. Nothing
 # matches a pattern, because a pattern eventually matches something of yours.
-LEGACY_CONTAINERS="bbwebapp-backend bbwebapp-frontend bbwebapp-lab-juiceshop bbwebapp-lab-dvwa"
+# Every name this project has shipped under, newest first. Two renames now, so
+# this is a list rather than a single generation — the parapet-* containers are
+# the ones actually running on any machine that upgraded last time, and missing
+# them would reproduce the exact conflict this block exists to prevent.
+LEGACY_CONTAINERS="parapet-backend parapet-frontend parapet-lab-juiceshop parapet-lab-dvwa \
+bbwebapp-backend bbwebapp-frontend bbwebapp-lab-juiceshop bbwebapp-lab-dvwa"
 
 clear_legacy_containers() {
   local found=""
@@ -234,8 +239,8 @@ clear_legacy_containers() {
 
 # ---------- 2c. one-time volume migration ----------
 #
-# docker-compose.yml now pins `name: parapet`, so the data volume is
-# `parapet_app-data`. Before that, Compose derived the project name from the
+# docker-compose.yml now pins `name: merlon`, so the data volume is
+# `merlon_app-data`. Before that, Compose derived the project name from the
 # checkout directory — "Bug Bounty Webapp" became `bugbountywebapp_app-data`.
 #
 # Without this, `docker compose up` would create a fresh empty volume and every
@@ -243,11 +248,11 @@ clear_legacy_containers() {
 # while the real data sat untouched in a volume nothing mounts any more. Copy
 # rather than rename: if anything goes wrong the original is still there.
 migrate_volume() {
-  local target="parapet_app-data"
+  local target="merlon_app-data"
   docker volume inspect "$target" >/dev/null 2>&1 && return 0   # already done
 
   local old
-  old="$(docker volume ls -q 2>/dev/null | grep -E '_app-data$' | grep -v '^parapet_' | head -1 || true)"
+  old="$(docker volume ls -q 2>/dev/null | grep -E '_app-data$' | grep -v '^merlon_' | head -1 || true)"
   [ -z "${old:-}" ] && return 0
 
   warn "found data from a previous install ($old) — copying it across…"

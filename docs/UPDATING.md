@@ -132,7 +132,7 @@ that gets paid.
 your content next to it. If it's more than a day old the bar turns amber and
 says so, because "I updated it at some point" is not the same as knowing.
 
-It also runs automatically every 24 hours. Set `PARAPET_AUTO_UPDATE=0` to
+It also runs automatically every 24 hours. Set `MERLON_AUTO_UPDATE=0` to
 disable that.
 
 | Source | What it refreshes |

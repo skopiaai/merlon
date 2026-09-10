@@ -94,7 +94,7 @@ missing arm64 packages. Every one of those is caught here in seconds.
 ## Layout
 
 ```
-parapet/
+merlon/
 ├── docker-compose.yml
 ├── docs/UPDATING.md          ← the weekly maintenance runbook
 ├── backend/

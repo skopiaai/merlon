@@ -19,7 +19,7 @@ Not missing features — deliberate limits, documented in [SECURITY.md](SECURITY
 
 Race conditions, business logic flaws, and anything requiring an understanding
 of what the application is *for*. Those come from a human reading the thing.
-Parapet's job is to clear everything mechanical fast, so your attention goes
+Merlon's job is to clear everything mechanical fast, so your attention goes
 to the parts that actually pay.
 
 ---
