@@ -114,7 +114,7 @@ def _result(finding: Finding, rule_index: int) -> dict:
         "partialFingerprints": {
             # Stable across scans, so a consumer can tell "same finding again"
             # from "new finding" — that's what drives triage state in GitHub.
-            "sentinelDedupeKey": finding.dedupe_key,
+            "parapetDedupeKey": finding.dedupe_key,
         },
         "properties": {
             "engine": finding.engine,

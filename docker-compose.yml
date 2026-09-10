@@ -1,4 +1,6 @@
-# Sentinel — offline security recon & triage platform
+name: parapet
+
+# Parapet — offline security recon & triage platform
 #
 # NOTE: services bind to 127.0.0.1 only. This stack is not meant to be
 # reachable from your network. Do not change these to 0.0.0.0.
@@ -22,20 +24,20 @@ services:
       - app-data:/data
       - nuclei-templates:/root/nuclei-templates
     environment:
-      SENTINEL_DB_PATH: /data/sentinel.db
-      SENTINEL_ARTIFACT_DIR: /data/artifacts
+      PARAPET_DB_PATH: /data/parapet.db
+      PARAPET_ARTIFACT_DIR: /data/artifacts
       # Community template repos and takeover fingerprints live on the same
       # named volume, so a container rebuild doesn't re-clone several hundred
       # megabytes.
-      SENTINEL_TEMPLATE_DIR: /data/templates
-      SENTINEL_UPDATE_STATE: /data/update-state.json
+      PARAPET_TEMPLATE_DIR: /data/templates
+      PARAPET_UPDATE_STATE: /data/update-state.json
       # Refresh templates, fingerprints and tool binaries every 24h. Set to 0
       # if you'd rather press the button yourself.
-      SENTINEL_AUTO_UPDATE: "${SENTINEL_AUTO_UPDATE:-1}"
+      PARAPET_AUTO_UPDATE: "${PARAPET_AUTO_UPDATE:-1}"
       # Ollama runs on the macOS host, not in a container.
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
-      SENTINEL_MAX_CONCURRENT_SCANS: "2"
+      PARAPET_MAX_CONCURRENT_SCANS: "2"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

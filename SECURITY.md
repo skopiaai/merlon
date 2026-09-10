@@ -1,6 +1,6 @@
 # Security Policy
 
-## Reporting a vulnerability in Sentinel itself
+## Reporting a vulnerability in Parapet itself
 
 Please **do not** open a public issue for a security problem in this tool.
 
@@ -15,7 +15,7 @@ want it, and a fix.
 
 ### What is in scope
 
-Anything that lets Sentinel harm its operator or a third party:
+Anything that lets Parapet harm its operator or a third party:
 
 | Class | Why it matters |
 |---|---|

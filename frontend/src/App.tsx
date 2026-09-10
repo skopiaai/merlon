@@ -69,7 +69,7 @@ export default function App() {
         <header className="topbar">
           <button className="brand" onClick={() => setTab("scan")}>
             <span className="dot" />
-            Bug Bounty Webapp
+            Parapet
           </button>
 
           <div className="status">

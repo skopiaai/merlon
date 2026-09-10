@@ -1,12 +1,14 @@
-# Sentinel
+# Parapet
+
+*by Skopia AI*
 
 **A self-hosted attack surface scanner and Hack The Box companion that runs entirely on your machine.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-888%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-899%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
-Sentinel runs 34 detection engines over a target, normalises everything they
+Parapet runs 34 detection engines over a target, normalises everything they
 emit into one finding schema, re-tests each result to see whether it actually
 reproduces, and drafts the report. A **local** LLM does the triage — nothing
 leaves your machine. No cloud service, no telemetry, no account.
@@ -23,8 +25,8 @@ picks an AI model that fits your machine's RAM, builds the containers, and
 opens the UI.
 
 ```bash
-git clone https://github.com/<you>/sentinel.git
-cd sentinel
+git clone https://github.com/<you>/parapet.git
+cd parapet
 ./start.sh
 ```
 
@@ -71,7 +73,7 @@ is installed for you.
 > Misuse Act, and equivalents nearly everywhere. Good intentions are not a
 > defence. Neither is finding a real bug.
 >
-> Sentinel makes you record who authorized the work before it will scan. That
+> Parapet makes you record who authorized the work before it will scan. That
 > friction is deliberate and it exists to protect you.
 > See [SECURITY.md](SECURITY.md) and [docs/ethics.md](docs/ethics.md).
 
@@ -96,7 +98,7 @@ it is worth.
 
 ### HTB — work a box or a CTF
 
-Add a machine by address and difficulty. Sentinel scans it, works out which
+Add a machine by address and difficulty. Parapet scans it, works out which
 phase you are in, and gives you a short ranked list of what to do next — with
 the target already substituted into every command.
 
@@ -171,7 +173,7 @@ bypasses, exposed cloud buckets, credentials in JavaScript bundles, GraphQL
 introspection, hidden parameters, and email/DNS policy (SPF, DKIM, DMARC,
 DNSSEC, CAA, zone transfer).
 
-**Broken access control** — with two accounts configured, Sentinel compares what
+**Broken access control** — with two accounts configured, Parapet compares what
 each can reach and reports endpoints that need no session at all, and records
 one user can read that belong to another. This is the bug class that pays most,
 and it is absent from scanners that hold a single session.
@@ -183,7 +185,7 @@ engines' worth of it:
 - *Exfiltration channels* — the part that turns injection into an actual
   breach. If the assistant emits a markdown image, the victim's browser sends
   the conversation to an attacker's server with no click and nothing on screen.
-  That is the Grafana AI-companion class; Sentinel tests the channel, weighs it
+  That is the Grafana AI-companion class; Parapet tests the channel, weighs it
   against your CSP, and writes the chain out so a triager can follow it.
 - *Invisible Unicode instructions* — payloads in the U+E0000 tag block render
   as nothing in every UI a human reviews, and tokenise normally for the model.
@@ -213,9 +215,9 @@ Copy `.env.example` to `.env` to change anything. Common ones:
 
 ```bash
 OLLAMA_MODEL=qwen2.5:14b        # override the RAM-based choice
-SENTINEL_AUTO_UPDATE=0          # stop the daily content refresh
-SENTINEL_AUTO_INSTALL=0         # never install Ollama for me
-SENTINEL_MAX_RATE_LIMIT=150     # global requests/sec ceiling
+PARAPET_AUTO_UPDATE=0          # stop the daily content refresh
+PARAPET_AUTO_INSTALL=0         # never install Ollama for me
+PARAPET_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ```
 
 → [Keeping detection content current](docs/UPDATING.md)
@@ -225,7 +227,7 @@ SENTINEL_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 888 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 899 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 
@@ -236,7 +238,7 @@ cd backend && python -m pytest tests/ -q     # 888 unit tests, no network
 
 ## Credit
 
-Sentinel is an orchestrator. The scanning is done by
+Parapet is an orchestrator. The scanning is done by
 [ProjectDiscovery](https://github.com/projectdiscovery)'s tools (nuclei,
 subfinder, httpx, naabu, katana, dnsx, tlsx, cdncheck), plus nmap, ffuf,
 gitleaks and testssl.sh. The HTB privilege-escalation lookups come from

@@ -114,6 +114,27 @@ INFERENCE_PROBES = [
 ]
 
 
+# Keys that only a real agent/plugin manifest declares. A generic JSON health
+# response has none of them, which is what separates "this is a manifest" from
+# "this server returns JSON for every path".
+MANIFEST_KEYS = re.compile(
+    r"\"(?:schema_version|name_for_(?:human|model)|description_for_(?:human|model)|"
+    r"api|auth|tools|functions|capabilities|skills|endpoints|"
+    r"protocolVersion|mcpVersion|serverInfo|agent|provider|contact_email|"
+    r"logo_url|legal_info_url|model|version)\"\s*:", re.I)
+
+
+def looks_like_manifest(body: str) -> bool:
+    """Does this JSON actually declare an agent surface?
+
+    Deliberately requires two distinct keys rather than one. `"version":` alone
+    appears in most health endpoints, and a single-key threshold put the
+    catch-all responses straight back into the report.
+    """
+    keys = {m.group(0).lower() for m in MANIFEST_KEYS.finditer(body or "")}
+    return len(keys) >= 2
+
+
 def manifest_risks(body: str) -> list[str]:
     """What a published manifest gives away that it should not."""
     risks = []
@@ -230,6 +251,9 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
         host = (urlparse(origin).hostname or "").lower()
 
         # --- 1. published manifests ----------------------------------------
+        # Per origin, not global: two different hosts legitimately serving the
+        # same manifest are two findings.
+        seen_bodies: dict[int, int] = {}
         for path, kind in MANIFEST_PATHS:
             url = urljoin(origin, path)
             resp = await fetch.request(url, ctx=ctx, timeout=12)
@@ -242,6 +266,24 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
             is_text = path.endswith(".txt") and "html" not in ctype
             if not (is_json or is_text):
                 continue
+
+            # Being JSON is not enough. A catch-all route — an API gateway
+            # default, a framework returning {"status":"ok"} for anything
+            # unmatched — answers all ten of these paths and produced ten
+            # "manifest" findings, which is the kind of noise that teaches you
+            # to skim past the engine entirely.
+            #
+            # Two guards. First: the body has to contain something a manifest
+            # actually declares.
+            if is_json and not looks_like_manifest(resp.body):
+                continue
+            # Second: identical bodies across different paths mean the server
+            # is not serving ten manifests, it is ignoring the path.
+            fingerprint = hash(resp.body[:2000])
+            if fingerprint in seen_bodies:
+                seen_bodies[fingerprint] += 1
+                continue
+            seen_bodies[fingerprint] = 1
 
             risks = manifest_risks(resp.body)
             severity = Severity.info
@@ -340,7 +382,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
                         f"conversation-scoped prompt injection; it is persistent, "
                         f"and it is attributed to the vendor's own knowledge base "
                         f"(ASI06).\n\n"
-                        f"Sentinel only read. It did not write, and you should "
+                        f"Parapet only read. It did not write, and you should "
                         f"confirm writability by asking the owner rather than by "
                         f"inserting a document."
                         + (f"\n\nCollections present: {', '.join(collections[:15])}"

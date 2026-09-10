@@ -30,17 +30,17 @@ answer.
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 from pathlib import Path
 
+from . import config
 from .config import ARTIFACT_DIR
 
 KEV_URL = ("https://www.cisa.gov/sites/default/files/feeds/"
            "known_exploited_vulnerabilities.json")
 
-KEV_FILE = Path(os.getenv("SENTINEL_KEV_FILE",
+KEV_FILE = Path(config.env("KEV_FILE",
                           str(ARTIFACT_DIR.parent / "kev.json")))
 
 CVE_ID = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)

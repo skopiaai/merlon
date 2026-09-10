@@ -355,3 +355,42 @@ def test_manifest_finding_never_contains_the_secret_anywhere():
         if "resp.body" in block:
             assert "redact(" in block, (
                 "an evidence block quotes resp.body without redacting:\n" + block)
+
+
+# ------------------------------------------------ catch-all false positives
+
+def test_generic_json_is_not_mistaken_for_a_manifest():
+    """A server that returns JSON for every path produced ten findings.
+
+    API gateway defaults and framework catch-all routes do exactly this. Ten
+    confident "manifest published" findings against a site with no AI surface
+    at all is the noise that teaches you to skip the engine's output entirely —
+    at which point the one real finding goes with it.
+    """
+    assert aisurface.looks_like_manifest('{"status":"ok","service":"api"}') is False
+    assert aisurface.looks_like_manifest('{"error":"not found"}') is False
+    assert aisurface.looks_like_manifest("") is False
+
+
+def test_a_real_manifest_is_recognised():
+    assert aisurface.looks_like_manifest(BENIGN_MANIFEST) is True
+    assert aisurface.looks_like_manifest(LEAKY_MANIFEST) is True
+
+
+def test_one_manifest_key_is_not_enough():
+    """`"version":` alone appears in most health endpoints.
+
+    A single-key threshold put the catch-all responses straight back in, which
+    is why this requires two distinct declarations.
+    """
+    assert aisurface.looks_like_manifest('{"version":"1.2.3"}') is False
+    assert aisurface.looks_like_manifest('{"version":"1.2.3","tools":[]}') is True
+
+
+def test_mcp_style_manifest_is_recognised():
+    """MCP descriptors use different keys from OpenAI plugin manifests."""
+    assert aisurface.looks_like_manifest(json.dumps({
+        "protocolVersion": "2025-06-18",
+        "serverInfo": {"name": "docs", "version": "1.0"},
+        "capabilities": {"tools": {}},
+    })) is True

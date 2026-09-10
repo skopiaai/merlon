@@ -143,7 +143,7 @@ def summary_report(scan_id: int) -> str:
     L += [
         "---",
         "",
-        f"*Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC} by Sentinel. "
+        f"*Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC} by Parapet. "
         "Automated findings require human verification before disclosure.*",
     ]
     return "\n".join(x for x in L if x is not None)

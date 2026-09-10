@@ -10,7 +10,7 @@
 # or when a database has got into a state you would rather not debug.
 #
 # None of this is in git — the database lives in a Docker volume and
-# .sentinel-data/ is ignored — so this is about your machine, not the
+# .parapet-data/ is ignored — so this is about your machine, not the
 # repository. Nothing here touches your code or your commits.
 
 set -euo pipefail
@@ -79,7 +79,7 @@ if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
     fi
     if [ -n "${vol:-}" ]; then
       docker run --rm -v "${vol}:/data" alpine:3 \
-        sh -c 'rm -f /data/sentinel.db /data/sentinel.db-wal /data/sentinel.db-shm /data/update-state.json;
+        sh -c 'rm -f /data/parapet.db /data/parapet.db-wal /data/parapet.db-shm /data/update-state.json;
                rm -rf /data/artifacts /data/htb-knowledge' >/dev/null 2>&1 \
         && ok "database and artifacts removed, templates kept" \
         || warn "could not write to volume $vol"
@@ -95,17 +95,17 @@ else
   warn "Docker isn't running — clearing local files only"
 fi
 
-# The non-Docker path: config.py falls back to .sentinel-data/ when /data is
+# The non-Docker path: config.py falls back to .parapet-data/ when /data is
 # not writable, which is what happens when you run the backend directly.
-if [ -d .sentinel-data ]; then
+if [ -d .parapet-data ]; then
   if [ "$KEEP_TEMPLATES" -eq 1 ]; then
-    rm -f .sentinel-data/sentinel.db .sentinel-data/sentinel.db-wal \
-          .sentinel-data/sentinel.db-shm
-    rm -rf .sentinel-data/artifacts
+    rm -f .parapet-data/parapet.db .parapet-data/parapet.db-wal \
+          .parapet-data/parapet.db-shm
+    rm -rf .parapet-data/artifacts
   else
-    rm -rf .sentinel-data
+    rm -rf .parapet-data
   fi
-  ok "local .sentinel-data cleared"
+  ok "local .parapet-data cleared"
 fi
 
 echo

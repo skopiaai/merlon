@@ -35,11 +35,12 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from . import config
 from .config import ARTIFACT_DIR
 
-STATE_FILE = Path(os.getenv("SENTINEL_UPDATE_STATE",
+STATE_FILE = Path(config.env("UPDATE_STATE",
                             str(ARTIFACT_DIR.parent / "update-state.json")))
-TEMPLATE_DIR = Path(os.getenv("SENTINEL_TEMPLATE_DIR", "/data/templates"))
+TEMPLATE_DIR = Path(config.env("TEMPLATE_DIR", "/data/templates"))
 
 # Content is considered stale after this long. Chosen to match how fast the
 # nuclei template repository actually moves — it takes several commits a day.
@@ -138,7 +139,7 @@ def status() -> dict:
         "sources": state.get("sources", []),
         "template_dirs": sorted(p.name for p in TEMPLATE_DIR.glob("*")
                                 if p.is_dir()) if TEMPLATE_DIR.exists() else [],
-        "auto_daily": os.getenv("SENTINEL_AUTO_UPDATE", "1") != "0",
+        "auto_daily": config.env("AUTO_UPDATE", "1") != "0",
     }
 
 
@@ -455,7 +456,7 @@ async def daily(interval: int = 24 * 3600) -> None:
     import logging
     logger = logging.getLogger(__name__)
 
-    if os.getenv("SENTINEL_AUTO_UPDATE", "1") == "0":
+    if config.env("AUTO_UPDATE", "1") == "0":
         logger.info("automatic content updates are disabled")
         return
 

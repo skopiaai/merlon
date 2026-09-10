@@ -78,7 +78,7 @@ run_timeout() {
   wait "$pid" 2>/dev/null
 }
 
-bold "Bug Bounty Webapp"
+bold "Parapet · by Skopia AI"
 
 # ---------- 1. Docker ----------
 command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Get Docker Desktop from docker.com."
@@ -166,7 +166,7 @@ else
   # Offer to install rather than just reporting the absence: "one command and
   # everything happens" is the point of this script.
   warn "Ollama isn't installed — it powers AI triage and JS analysis."
-  if [ "${SENTINEL_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Darwin" ] \
+  if [ "${PARAPET_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Darwin" ] \
      && command -v brew >/dev/null 2>&1; then
     info "installing via Homebrew (ctrl-C to skip)…"
     if brew install ollama >/dev/null 2>&1; then
@@ -178,7 +178,7 @@ else
     else
       warn "Homebrew install failed. Get it from ollama.com; the app runs without it."
     fi
-  elif [ "${SENTINEL_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
+  elif [ "${PARAPET_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
     info "installing via the official script (ctrl-C to skip)…"
     if curl -fsSL https://ollama.com/install.sh | sh >/tmp/ollama-install.log 2>&1; then
       ok "Ollama installed"
@@ -198,6 +198,40 @@ fi
 # Without exporting, a machine sized down to a 3b model would pull 3b and then
 # ask Ollama for 14b — and get "model not found" on every triage call.
 export OLLAMA_MODEL="$MODEL"
+
+# ---------- 2b. one-time volume migration ----------
+#
+# docker-compose.yml now pins `name: parapet`, so the data volume is
+# `parapet_app-data`. Before that, Compose derived the project name from the
+# checkout directory — "Bug Bounty Webapp" became `bugbountywebapp_app-data`.
+#
+# Without this, `docker compose up` would create a fresh empty volume and every
+# scan, finding and HTB box would appear to have been deleted by the upgrade,
+# while the real data sat untouched in a volume nothing mounts any more. Copy
+# rather than rename: if anything goes wrong the original is still there.
+migrate_volume() {
+  local target="parapet_app-data"
+  docker volume inspect "$target" >/dev/null 2>&1 && return 0   # already done
+
+  local old
+  old="$(docker volume ls -q 2>/dev/null | grep -E '_app-data$' | grep -v '^parapet_' | head -1 || true)"
+  [ -z "${old:-}" ] && return 0
+
+  warn "found data from a previous install ($old) — copying it across…"
+  docker volume create "$target" >/dev/null 2>&1 || true
+  if docker run --rm -v "${old}:/from:ro" -v "${target}:/to" alpine:3 \
+       sh -c 'cp -a /from/. /to/ 2>/dev/null || true' >/dev/null 2>&1; then
+    ok "previous scans and Hack The Box boxes carried over"
+    info "the old volume ($old) was left in place — remove it once you are happy"
+  else
+    warn "could not copy $old. Your old data is still in that volume; the app"
+    warn "will start with an empty database until it is moved across."
+  fi
+}
+
+if command -v docker >/dev/null 2>&1; then
+  migrate_volume || true
+fi
 
 bold "Starting containers…"
 # Same reasoning as the build-cache check above: an `if` block, for the same
