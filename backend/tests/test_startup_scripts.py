@@ -183,3 +183,62 @@ def test_start_handles_docker_being_stopped():
         "the Docker probe's status is not captured in a set -e-safe way"
     )
     assert "open -a Docker" in text, "the auto-start-Docker branch has gone missing"
+
+
+# ------------------------------------------------- rename: container names
+#
+# `container_name:` is a global Docker name, not project-scoped. Pinning the
+# compose project name did not change it, so the first upgrade run collided
+# with the containers the previous name had created:
+#
+#   Conflict. The container name "/bbwebapp-backend" is already in use
+#
+# Renaming them is only half the fix — the old containers still hold ports 8000
+# and 5173, so start.sh has to remove them. These tests keep the two lists in
+# agreement, because a container renamed in compose but not added to the
+# cleanup list reintroduces the same failure for the next person upgrading.
+
+def _compose() -> dict:
+    import yaml
+    return yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+
+
+def test_compose_pins_the_project_name():
+    """Without this the project name comes from the checkout directory, so two
+    people with differently-named folders get differently-named volumes."""
+    assert _compose().get("name") == "parapet"
+
+
+def test_container_names_carry_the_current_brand():
+    for service, spec in _compose()["services"].items():
+        name = spec.get("container_name")
+        if name:
+            assert name.startswith("parapet-"), (
+                f"service {service} still uses the pre-rename container name {name!r}")
+
+
+def test_startup_removes_every_pre_rename_container():
+    """Each renamed container must appear in start.sh's cleanup list."""
+    import re
+
+    start = (ROOT / "start.sh").read_text()
+    match = re.search(r'LEGACY_CONTAINERS="([^"]+)"', start)
+    assert match, "start.sh no longer declares LEGACY_CONTAINERS"
+    listed = set(match.group(1).split())
+
+    expected = {
+        spec["container_name"].replace("parapet-", "bbwebapp-")
+        for spec in _compose()["services"].values()
+        if spec.get("container_name")
+    }
+    missing = expected - listed
+    assert not missing, (
+        f"these containers were renamed but are not cleaned up on upgrade: "
+        f"{sorted(missing)} — the next person to upgrade hits a name conflict")
+
+
+def test_diagnose_still_finds_a_pre_rename_install():
+    """Otherwise the first thing an upgrading user is told is 'no container'."""
+    text = (ROOT / "diagnose.sh").read_text()
+    assert "parapet-backend" in text
+    assert "bbwebapp-backend" in text, "no fallback to the pre-rename name"

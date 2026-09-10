@@ -9,7 +9,15 @@ line "is the running container older than your code?"
 # The commonest cause of "it stopped working" after an update: `docker compose
 # up -d` without --build reuses the existing image, so the container runs code
 # from before the change. Nothing errors — it just behaves like the old version.
-CREATED=$(docker inspect -f '{{.Created}}' bbwebapp-backend 2>/dev/null)
+# Falls back to the pre-rename name so this still diagnoses an install that
+# has not been through ./start.sh since the rename — otherwise the first thing
+# it would say to an upgrading user is "backend container does not exist",
+# which is both wrong and the opposite of helpful.
+BACKEND_CONTAINER=parapet-backend
+docker container inspect "$BACKEND_CONTAINER" >/dev/null 2>&1 \
+  || BACKEND_CONTAINER=bbwebapp-backend
+
+CREATED=$(docker inspect -f '{{.Created}}' "$BACKEND_CONTAINER" 2>/dev/null)
 if [ -n "$CREATED" ]; then
   CREATED_TS=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${CREATED%%.*}" +%s 2>/dev/null \
                || date -d "${CREATED%%.*}" +%s 2>/dev/null || echo 0)
@@ -29,7 +37,7 @@ line "container status"
 docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}' 2>&1
 
 line "restart count (a climbing number means a crash loop)"
-for c in bbwebapp-backend bbwebapp-frontend; do
+for c in "$BACKEND_CONTAINER" "${BACKEND_CONTAINER%-backend}-frontend"; do
   printf "%s: %s restarts, exit code %s\n" "$c" \
     "$(docker inspect -f '{{.RestartCount}}' "$c" 2>/dev/null || echo '?')" \
     "$(docker inspect -f '{{.State.ExitCode}}' "$c" 2>/dev/null || echo '?')"

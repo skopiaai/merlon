@@ -199,7 +199,40 @@ fi
 # ask Ollama for 14b — and get "model not found" on every triage call.
 export OLLAMA_MODEL="$MODEL"
 
-# ---------- 2b. one-time volume migration ----------
+# ---------- 2b. clear containers left by the pre-rename project ----------
+#
+# `container_name:` is a global Docker name, not a project-scoped one. Pinning
+# `name: parapet` in compose created a new project that still wanted the same
+# container names, so the first upgrade run died with:
+#
+#   Conflict. The container name "/bbwebapp-backend" is already in use
+#
+# Renaming the containers to parapet-* fixes the collision but not the real
+# problem: the old containers are still running and still holding ports 8000
+# and 5173, so the new ones would fail to bind instead. They have to go.
+#
+# Only containers this project created are touched, by exact name. Nothing
+# matches a pattern, because a pattern eventually matches something of yours.
+LEGACY_CONTAINERS="bbwebapp-backend bbwebapp-frontend bbwebapp-lab-juiceshop bbwebapp-lab-dvwa"
+
+clear_legacy_containers() {
+  local found=""
+  for c in $LEGACY_CONTAINERS; do
+    if docker container inspect "$c" >/dev/null 2>&1; then
+      found="$found $c"
+    fi
+  done
+  [ -z "$found" ] && return 0
+
+  warn "removing containers from the previous name:$found"
+  info "(their data lives in the volume, which is copied across below)"
+  # shellcheck disable=SC2086
+  docker rm -f $found >/dev/null 2>&1 \
+    && ok "old containers removed" \
+    || warn "could not remove them — run: docker rm -f$found"
+}
+
+# ---------- 2c. one-time volume migration ----------
 #
 # docker-compose.yml now pins `name: parapet`, so the data volume is
 # `parapet_app-data`. Before that, Compose derived the project name from the
@@ -230,6 +263,9 @@ migrate_volume() {
 }
 
 if command -v docker >/dev/null 2>&1; then
+  # Order matters: the old containers must be gone before the volume is copied,
+  # or the copy reads a database that is still being written to.
+  clear_legacy_containers || true
   migrate_volume || true
 fi
 

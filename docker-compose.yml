@@ -13,7 +13,7 @@ services:
         # "binary" (fast, default) or "source" (compiles with Go).
         # Override:  INSTALL_MODE=source docker compose up --build
         INSTALL_MODE: ${INSTALL_MODE:-binary}
-    container_name: bbwebapp-backend
+    container_name: parapet-backend
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -48,7 +48,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: bbwebapp-frontend
+    container_name: parapet-frontend
     ports:
       - "127.0.0.1:5173:5173"
     environment:
@@ -70,7 +70,7 @@ services:
 
   juiceshop:
     image: bkimminich/juice-shop:latest
-    container_name: bbwebapp-lab-juiceshop
+    container_name: parapet-lab-juiceshop
     profiles: ["lab"]
     networks:
       lab:
@@ -82,7 +82,7 @@ services:
 
   dvwa:
     image: vulnerables/web-dvwa:latest
-    container_name: bbwebapp-lab-dvwa
+    container_name: parapet-lab-dvwa
     profiles: ["lab"]
     networks:
       lab:
