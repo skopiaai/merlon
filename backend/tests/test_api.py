@@ -131,3 +131,39 @@ def test_health_reports_ollama_state(client):
     body = client.get("/api/health").json()
     assert body["status"] == "ok"
     assert "reachable" in body["ollama"]
+
+
+# ------------------------------------------------- upload hardening (audit)
+
+def test_upload_suffix_is_whitelisted():
+    """The tempfile suffix comes from the client's filename.
+
+    Nothing here reaches a shell — every tool runs through
+    `create_subprocess_exec` — so this is not an injection fix. It stops an
+    attacker-chosen string becoming part of a filename on disk, which is what
+    trips up whichever tool opens it next.
+    """
+    from app.main import safe_suffix
+
+    assert safe_suffix("dump.mem") == ".mem"
+    assert safe_suffix("shell.PHP") == ".php"          # normalised
+    assert safe_suffix("x.$(whoami)") == ""            # not an extension
+    assert safe_suffix("a.b/../../c.sh") == ""         # not on the list
+    assert safe_suffix("evil." + "A" * 5000) == ""     # unbounded input
+    assert safe_suffix(None) == ""
+    assert safe_suffix("noextension") == ""
+
+
+def test_artifact_upload_is_size_capped():
+    """The write loop ran until the client stopped sending.
+
+    Uploads land in the data volume, so one request could fill the disk — and a
+    full volume is what makes SQLite start returning "disk I/O error" on every
+    later scan, which presents as the whole app being broken.
+    """
+    from app import main
+
+    assert main.MAX_UPLOAD <= 1 << 30, "cap is too loose to bound disk use"
+    src = __import__("inspect").getsource(main.analyze_artifact)
+    assert "MAX_UPLOAD" in src and "413" in src, \
+        "the artifact upload no longer enforces a size cap"

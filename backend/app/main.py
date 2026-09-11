@@ -512,6 +512,37 @@ async def reanalyze(sid: int, db: Session = Depends(get_db)):
 
 # ---------------- CTF workspace ----------------
 
+# Uploaded artifacts land in the data volume. Both limits are generous for real
+# challenge files (memory dumps and pcaps are the big ones) and small enough
+# that a stuck client cannot fill the disk.
+MAX_UPLOAD = 512 * 1024 * 1024          # challenge artifacts, streamed to disk
+MAX_LOG_UPLOAD = 80 * 1024 * 1024       # access logs, read into memory
+
+# Extensions the analyser actually keys on, plus the ones people really upload.
+# Anything else gets no suffix at all.
+SAFE_SUFFIXES = frozenset({
+    ".7z", ".apk", ".bin", ".bmp", ".bz2", ".cap", ".class", ".db", ".dmp",
+    ".doc", ".docx", ".elf", ".exe", ".gif", ".gz", ".hex", ".img", ".iso",
+    ".jar", ".jpeg", ".jpg", ".js", ".json", ".log", ".lzma", ".mem", ".mp3",
+    ".mp4", ".o", ".ova", ".pcap", ".pcapng", ".pdf", ".pem", ".php", ".png",
+    ".ppt", ".py", ".raw", ".rar", ".so", ".sql", ".tar", ".tgz", ".tlog",
+    ".txt", ".vmdk", ".wav", ".xls", ".xlsx", ".xz", ".yaml", ".yml", ".zip",
+})
+
+
+def safe_suffix(filename: str | None) -> str:
+    """A tempfile suffix taken from an uploaded filename, or "".
+
+    The suffix is not cosmetic — `analyzer` dispatches on it — but it arrives
+    from the client, and `os.path.splitext` happily returns things like
+    `.$(whoami)` or a 4KB string. Nothing here reaches a shell (every tool runs
+    through `create_subprocess_exec`), so this is not an injection fix; it stops
+    an attacker-chosen string becoming part of a filename on disk, which is the
+    kind of thing that trips up whichever tool reads it next.
+    """
+    ext = os.path.splitext(filename or "")[1].lower()
+    return ext if ext in SAFE_SUFFIXES else ""
+
 @app.post("/api/ctf/analyze")
 async def analyze_artifact(file: UploadFile = File(...)):
     """Drop any challenge file; run the full triage chain for its type.
@@ -519,11 +550,22 @@ async def analyze_artifact(file: UploadFile = File(...)):
     Most Jeopardy challenges start with a file and the same ten minutes of
     commands. This does all of them at once and puts flag candidates first.
     """
-    suffix = os.path.splitext(file.filename or "")[1][:16]
+    suffix = safe_suffix(file.filename)
     fd, tmp = tempfile.mkstemp(prefix="ctf_", suffix=suffix, dir=str(ARTIFACT_DIR))
+    written = 0
     try:
         with os.fdopen(fd, "wb") as out:
             while chunk := await file.read(1 << 20):
+                written += len(chunk)
+                # Capped. The loop used to run until the client stopped
+                # sending, writing straight into the data volume — one request
+                # could fill the disk, and a full volume is what makes SQLite
+                # start returning "disk I/O error" on every subsequent scan.
+                if written > MAX_UPLOAD:
+                    raise HTTPException(
+                        413,
+                        f"file is larger than the {MAX_UPLOAD // (1 << 20)} MB "
+                        f"limit for challenge artifacts")
                 out.write(chunk)
         report = await analyzer.analyze(tmp, original_name=file.filename or "artifact")
         return report.as_dict()
@@ -541,7 +583,7 @@ async def analyse_logs(file: UploadFile = File(...)):
     Only useful with logs the system owner has given you — this is incident
     response, not something you can obtain by scanning from outside.
     """
-    raw = await file.read(80 * 1024 * 1024)
+    raw = await file.read(MAX_LOG_UPLOAD)
     text = raw.decode("utf-8", "replace")
     return forensics.analyse(text).as_dict()
 

@@ -85,13 +85,57 @@ def test_every_engine_request_goes_through_the_scope_gate():
     Engines call fetch.request; if one is added later without passing ctx it
     runs logged-out, and if fetch ever attaches headers without consulting
     scope it leaks. This asserts the single chokepoint still exists.
+
+    Reads `_one_request` rather than `request`: the redirect follower was
+    lifted out into `request()`, so the credential-attaching code now lives one
+    level down. Asserting on the wrong function is how a guard like this ends
+    up passing while guarding nothing.
+    """
+    import inspect
+
+    from app.engines import fetch
+    source = inspect.getsource(fetch._one_request)
+    assert "auth_for" in source and "scoped_identity" in source, \
+        "fetch._one_request no longer routes credentials through the scope check"
+
+
+def test_redirects_are_checked_against_the_hard_deny_list():
+    """The seed is scope-checked; the redirect target used to not be.
+
+    `follow=True` handed `-L` to curl, so an in-scope target answering
+    `302 Location: http://169.254.169.254/…` got followed straight into the
+    cloud metadata service. Verified against curl before the fix: the request
+    was made.
     """
     import inspect
 
     from app.engines import fetch
     source = inspect.getsource(fetch.request)
-    assert "auth_for" in source and "scoped_identity" in source, \
-        "fetch.request no longer routes credentials through the scope check"
+    assert "hard_denied" in source, \
+        "fetch.request follows redirects without re-checking scope"
+    assert '"-L"' not in inspect.getsource(fetch._one_request), \
+        "curl is following redirects itself again, bypassing the scope check"
+
+
+def test_curl_cannot_be_talked_out_of_http():
+    """`Location: file:///etc/passwd` made curl read a local file and return
+    it as a response body. Belt and braces alongside the redirect loop."""
+    import inspect
+
+    from app.engines import fetch
+    source = inspect.getsource(fetch._one_request)
+    assert "--proto-redir" in source and "=http,https" in source
+
+
+def test_a_url_cannot_become_a_curl_flag():
+    """URLs come from tool output and crawled pages, so their shape is not
+    guaranteed. Passed positionally, a leading dash is read as an option —
+    `-o/path` writes a file, `-K file` reads a config."""
+    import inspect
+
+    from app.engines import fetch
+    assert '"--url"' in inspect.getsource(fetch._one_request), \
+        "the URL is passed positionally again and can be parsed as a flag"
 
 
 # -------------------------------------------- what counts as successful access

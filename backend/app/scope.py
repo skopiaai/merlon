@@ -33,6 +33,36 @@ HARD_DENY_IPS = [
 HARD_DENY_HOSTS = {"metadata.google.internal", "localhost"}
 
 
+def hard_denied(target: str) -> str:
+    """Why this host may never be reached, or "" if it is permitted.
+
+    Split out of `check()` because the redirect follower needs the *absolute*
+    prohibitions without the engagement allowlist. A target legitimately in
+    scope can still answer `302 Location: http://169.254.169.254/…`, and
+    following that reaches the cloud metadata service from inside whatever
+    network the scanner is running on. The seed was checked; the hop was not.
+
+    RFC1918 is deliberately absent — Hack The Box lives on 10.10.10.0/24 and
+    home labs on 192.168.0.0/16, and denying those would break the tool's
+    actual job. Link-local and loopback are the ones that are never a target
+    and always a trap.
+    """
+    try:
+        host = normalize_host(target)
+    except ScopeViolation as exc:
+        return str(exc)
+
+    if host in HARD_DENY_HOSTS:
+        return f"{host} is hard-denied"
+
+    ip = _as_ip(host)
+    if ip is not None:
+        for net in HARD_DENY_IPS:
+            if ip.version == net.version and ip in net:
+                return f"{host} is in hard-denied range {net}"
+    return ""
+
+
 class ScopeViolation(Exception):
     """Raised when a target fails scope validation. Never swallow this."""
 

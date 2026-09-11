@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass, field
+from urllib.parse import urljoin, urlparse
 
 # A response body big enough to be a download rather than a page tells you
 # nothing extra and costs memory in every engine that holds one.
@@ -37,6 +38,9 @@ class Resp:
     headers: dict[str, str] = field(default_factory=dict)
     body: str = ""
     raw: bytes = b""
+    # Set when a redirect was refused. Surfaced rather than swallowed: a target
+    # pointing the scanner at link-local or loopback is worth seeing.
+    redirect_blocked: str = ""
 
     @property
     def ok(self) -> bool:
@@ -110,7 +114,7 @@ def auth_for(url: str, ctx: dict | None) -> dict[str, str]:
     return scoped_headers(url, headers, ctx.get("allow") or [], ctx.get("deny") or [])
 
 
-async def request(url: str, *, method: str = "GET",
+async def _one_request(url: str, *, method: str = "GET",
                   headers: dict[str, str] | None = None,
                   data: str | None = None,
                   follow: bool = False,
@@ -129,10 +133,15 @@ async def request(url: str, *, method: str = "GET",
     argv = ["curl", "-sS", "-i", "-k", "--path-as-is",
             "--max-time", str(timeout),
             "--max-filesize", str(MAX_BODY),
+            # Defence in depth against a `Location:` that leaves HTTP entirely.
+            # Without this, `Location: file:///etc/passwd` makes curl read a
+            # local file and hand it back as a response body — verified against
+            # curl 7.81. The redirect loop below would catch it anyway; this
+            # catches anything the loop does not.
+            "--proto", "=http,https",
+            "--proto-redir", "=http,https",
             "-A", DEFAULT_UA,
             "-X", method]
-    if follow:
-        argv += ["-L", "--max-redirs", "3"]
 
     merged: dict[str, str] = {}
     if authenticated:
@@ -145,7 +154,11 @@ async def request(url: str, *, method: str = "GET",
         argv += ["-H", f"{key}: {value}"]
     if data is not None:
         argv += ["--data-binary", data]
-    argv.append(url)
+    # `--url` rather than a positional argument. A "URL" harvested from tool
+    # output or a crawled page can begin with a dash, and curl would read it as
+    # a flag — `-o/path` writes a file, `-K file` reads a config. Nothing
+    # upstream guarantees the shape of these strings.
+    argv += ["--url", url]
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -160,6 +173,64 @@ async def request(url: str, *, method: str = "GET",
     status, hdrs, body = _parse(out or b"")
     return Resp(url=url, status=status, headers=hdrs, raw=body,
                 body="" if binary else body.decode("utf-8", "replace"))
+
+
+REDIRECT_CODES = {301, 302, 303, 307, 308}
+MAX_REDIRECTS = 3
+
+
+async def request(url: str, *, follow: bool = False, **kw) -> Resp:
+    """One request, following redirects *through the scope guard* if asked.
+
+    Redirects used to be handed to curl with `-L`, which is where this went
+    wrong: the scope guard runs over the targets an engine is given, and a
+    target that is legitimately in scope can still answer
+
+        302 Location: http://169.254.169.254/latest/meta-data/
+
+    and curl would fetch it. The seed was checked; the hop never was. On a
+    cloud host that reaches the instance metadata service — credentials — and
+    on any host it reaches loopback, where this application's own unauthenticated
+    API is listening.
+
+    So each hop is resolved here and passed through `scope.hard_denied` before
+    it is fetched. Only the absolute prohibitions are enforced, not the
+    engagement allowlist: a site redirecting to its own CDN or to a login on a
+    sibling domain is normal, and refusing those would break ordinary scanning
+    to prevent nothing.
+    """
+    from .. import scope
+
+    resp = await _one_request(url, **kw)
+    if not follow:
+        return resp
+
+    seen = {url}
+    for _ in range(MAX_REDIRECTS):
+        if resp.status not in REDIRECT_CODES:
+            return resp
+        location = (resp.headers or {}).get("location", "").strip()
+        if not location:
+            return resp
+
+        nxt = urljoin(resp.url, location)
+        parsed = urlparse(nxt)
+        if parsed.scheme not in ("http", "https"):
+            resp.redirect_blocked = f"refused non-HTTP redirect to {parsed.scheme}:"
+            return resp
+        reason = scope.hard_denied(nxt)
+        if reason:
+            # Recorded rather than raised: a scan must not die because one
+            # target pointed somewhere it should not, and the fact that it
+            # *tried* is itself worth seeing in the log.
+            resp.redirect_blocked = f"refused redirect — {reason}"
+            return resp
+        if nxt in seen:
+            return resp
+        seen.add(nxt)
+
+        resp = await _one_request(nxt, **kw)
+    return resp
 
 
 def scoped_identity(url: str, identity: dict | None, ctx: dict | None) -> dict[str, str]:
