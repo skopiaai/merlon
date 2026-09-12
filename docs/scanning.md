@@ -85,6 +85,7 @@ short of the step that would change something on the target.
 | **cors** | Reflected origins, `null` origin, and prefix/suffix bypasses of origin validation | Probe origins use the reserved `.invalid` TLD |
 | **redirect** | Unvalidated redirect parameters, incl. protocol-relative, backslash and userinfo forms | Redirects are read from `Location`, never followed |
 | **methods** | PUT, DELETE, TRACE and WebDAV verbs left enabled | Read from OPTIONS/Allow — never proved by writing |
+| **cachepoison** | Unkeyed headers that change a cached response, and static-looking suffixes that make a cache store a logged-in user's page | Every probe carries a unique cache-buster, so a poisoned entry is only ever our own URL |
 | **authbypass** | 403s defeated by path normalisation or `X-Original-URL`-style headers | Read-only rewrites only |
 | **apidocs** | Swagger/OpenAPI, GraphQL introspection, Spring actuator, framework debuggers | — |
 | **exposures** | `.git`, `.env`, backups, dumps, editor leftovers, private keys | Confirmed by content signature, not status code; credentials redacted from evidence |

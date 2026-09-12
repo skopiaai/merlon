@@ -86,17 +86,19 @@ def test_every_engine_request_goes_through_the_scope_gate():
     runs logged-out, and if fetch ever attaches headers without consulting
     scope it leaks. This asserts the single chokepoint still exists.
 
-    Reads `_one_request` rather than `request`: the redirect follower was
-    lifted out into `request()`, so the credential-attaching code now lives one
-    level down. Asserting on the wrong function is how a guard like this ends
-    up passing while guarding nothing.
+    Reads `_execute` rather than `request`: the redirect follower was lifted
+    out into `request()` and simultaneous-request coalescing into
+    `_one_request()`, so the code that actually builds the curl argv and
+    attaches credentials now lives two levels down. Asserting on the wrong
+    function is how a guard like this ends up passing while guarding nothing —
+    so these read the function that builds the command line, wherever it is.
     """
     import inspect
 
     from app.engines import fetch
-    source = inspect.getsource(fetch._one_request)
+    source = inspect.getsource(fetch._execute)
     assert "auth_for" in source and "scoped_identity" in source, \
-        "fetch._one_request no longer routes credentials through the scope check"
+        "fetch._execute no longer routes credentials through the scope check"
 
 
 def test_redirects_are_checked_against_the_hard_deny_list():
@@ -113,7 +115,7 @@ def test_redirects_are_checked_against_the_hard_deny_list():
     source = inspect.getsource(fetch.request)
     assert "hard_denied" in source, \
         "fetch.request follows redirects without re-checking scope"
-    assert '"-L"' not in inspect.getsource(fetch._one_request), \
+    assert '"-L"' not in inspect.getsource(fetch._execute), \
         "curl is following redirects itself again, bypassing the scope check"
 
 
@@ -123,7 +125,7 @@ def test_curl_cannot_be_talked_out_of_http():
     import inspect
 
     from app.engines import fetch
-    source = inspect.getsource(fetch._one_request)
+    source = inspect.getsource(fetch._execute)
     assert "--proto-redir" in source and "=http,https" in source
 
 
@@ -134,7 +136,7 @@ def test_a_url_cannot_become_a_curl_flag():
     import inspect
 
     from app.engines import fetch
-    assert '"--url"' in inspect.getsource(fetch._one_request), \
+    assert '"--url"' in inspect.getsource(fetch._execute), \
         "the URL is passed positionally again and can be parsed as a flag"
 
 

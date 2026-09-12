@@ -137,7 +137,11 @@ async def capture(url: str, ctx: dict | None = None, *, method: str = "GET",
                   headers: dict | None = None,
                   authenticated: bool = True) -> Evidence:
     """One reproduction attempt, recorded in full."""
+    # fresh=True: never share a response with another in-flight request.
+    # Reproduction is decided by fetching twice and comparing, so a shared
+    # answer would make everything look like it reproduced.
     resp = await fetch.request(url, method=method, headers=headers, ctx=ctx,
+                               fresh=True,
                                authenticated=authenticated, timeout=15)
     body = resp.body or ""
     return Evidence(

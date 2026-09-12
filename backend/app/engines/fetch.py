@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from urllib.parse import urljoin, urlparse
 
 # A response body big enough to be a download rather than a page tells you
@@ -114,7 +114,7 @@ def auth_for(url: str, ctx: dict | None) -> dict[str, str]:
     return scoped_headers(url, headers, ctx.get("allow") or [], ctx.get("deny") or [])
 
 
-async def _one_request(url: str, *, method: str = "GET",
+async def _execute(url: str, *, method: str = "GET",
                   headers: dict[str, str] | None = None,
                   data: str | None = None,
                   follow: bool = False,
@@ -175,6 +175,89 @@ async def _one_request(url: str, *, method: str = "GET",
                 body="" if binary else body.decode("utf-8", "replace"))
 
 
+# ---------------------------------------------------------------- coalescing
+#
+# Engines inside a phase run concurrently, and several of them independently
+# fetch the same handful of URLs — the site root, /robots.txt, the login page,
+# a JS bundle. Each of those was its own curl subprocess and its own request
+# hitting the target.
+#
+# This merges requests that are *simultaneously in flight* into one. What it
+# deliberately does not do is cache completed responses, and that distinction
+# is load-bearing: verify.py establishes whether a finding is real by fetching
+# its URL twice, a fifth of a second apart, and comparing. A response cache
+# would hand it the same bytes both times, every finding would "reproduce",
+# and the submission queue — which is ordered by exactly that signal — would
+# become noise sorted confidently.
+#
+# So an entry exists only while a request is actually running. Two engines
+# asking at the same moment share one answer; anything sequential re-requests
+# for real, exactly as before.
+_inflight: dict[tuple, asyncio.Future[Resp]] = {}
+
+# Only requests that are safe to answer twice with one response. A body means
+# the caller is changing something, and a non-idempotent verb means the second
+# caller wanted its own side effect.
+_COALESCABLE_METHODS = {"GET", "HEAD"}
+
+
+def _coalesce_key(url: str, method: str, headers: dict[str, str],
+                  timeout: int, binary: bool, authenticated: bool,
+                  identity: dict | None, ctx: dict | None) -> tuple:
+    """Everything that can change the bytes that come back.
+
+    Identity and ctx are part of the key because the access-control engine's
+    whole method is asking for the same URL as different callers and comparing
+    what each gets. Keying on the URL alone would hand user B the response that
+    was fetched for user A — inventing an access-control finding, or hiding a
+    real one.
+    """
+    ident = id(identity) if identity is not None else 0
+    session = id(ctx) if ctx is not None else 0
+    return (url, method, tuple(sorted((headers or {}).items())),
+            timeout, binary, authenticated, ident, session)
+
+
+async def _one_request(url: str, **kw) -> Resp:
+    """`_execute`, with simultaneous identical requests sharing one subprocess."""
+    method = (kw.get("method") or "GET").upper()
+    fresh = kw.pop("fresh", False)
+
+    if (fresh or kw.get("data") is not None
+            or method not in _COALESCABLE_METHODS):
+        return await _execute(url, **kw)
+
+    key = _coalesce_key(url, method, kw.get("headers") or {},
+                        kw.get("timeout", 15), kw.get("binary", False),
+                        kw.get("authenticated", True),
+                        kw.get("identity"), kw.get("ctx"))
+
+    existing = _inflight.get(key)
+    if existing is not None:
+        resp = await asyncio.shield(existing)
+        # A copy per caller: `request()` writes redirect_blocked onto the Resp
+        # it is handed, and two callers must not scribble on each other's.
+        return replace(resp)
+
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future[Resp] = loop.create_future()
+    _inflight[key] = fut
+    try:
+        resp = await _execute(url, **kw)
+    except BaseException as exc:       # noqa: BLE001 - re-raised below
+        if not fut.done():
+            fut.set_exception(exc)
+        # Nobody may be waiting; stop asyncio reporting it as never retrieved.
+        fut.exception()
+        raise
+    else:
+        if not fut.done():
+            fut.set_result(resp)
+        return replace(resp)
+    finally:
+        _inflight.pop(key, None)
+
+
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 MAX_REDIRECTS = 3
 
@@ -201,6 +284,11 @@ async def request(url: str, *, follow: bool = False, **kw) -> Resp:
     """
     from .. import scope
 
+    # `fresh=True` opts out of coalescing entirely. Nothing sequential needs
+    # it — an in-flight entry only lives while a request is running — but the
+    # verification gate passes it so that the guarantee is stated in the code
+    # rather than inferred from timing, and survives verification ever being
+    # made concurrent.
     resp = await _one_request(url, **kw)
     if not follow:
         return resp

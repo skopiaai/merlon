@@ -6,10 +6,10 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-906%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-939%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
-Merlon runs 34 detection engines over a target, normalises everything they
+Merlon runs 35 detection engines over a target, normalises everything they
 emit into one finding schema, re-tests each result to see whether it actually
 reproduces, and drafts the report. A **local** LLM does the triage — nothing
 leaves your machine. No cloud service, no telemetry, no account.
@@ -212,6 +212,13 @@ bypasses, exposed cloud buckets, credentials in JavaScript bundles, GraphQL
 introspection, hidden parameters, and email/DNS policy (SPF, DKIM, DMARC,
 DNSSEC, CAA, zone transfer).
 
+**Cache poisoning and cache deception** — unkeyed headers such as
+`X-Forwarded-Host` that change a response a shared cache then serves to
+everyone, and static-looking suffixes (`/account/x.css`) that a framework
+ignores while a CDN treats them as a cacheable file — which is how a
+victim's private page ends up stored under a URL the attacker chose. Every
+probe is cache-busted, so nothing real is ever poisoned.
+
 **Broken access control** — with two accounts configured, Merlon compares what
 each can reach and reports endpoints that need no session at all, and records
 one user can read that belong to another. This is the bug class that pays most,
@@ -266,7 +273,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 906 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 939 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 
