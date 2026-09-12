@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-965%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-979%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Merlon runs 37 detection engines over a target, normalises everything they
@@ -281,6 +281,26 @@ now sorts above one that merely exists.
 
 ---
 
+## Drive it from an agent (MCP)
+
+Merlon speaks the [Model Context Protocol](https://modelcontextprotocol.io), so
+Claude Code, Cursor or any MCP client can run scans and read findings by calling
+tools — the same engine as the UI, no API key, nothing leaving the machine.
+
+```bash
+python -m app.mcp_server        # newline-delimited JSON-RPC 2.0 over stdio
+```
+
+The `start_scan` tool keeps the same authorization gate as the rest of the app:
+it refuses unless the call passes `authorized: true`, and the gate is in the
+tool rather than a prompt, so an agent cannot rephrase its way past it. Every
+other tool only reads. Merlon detects exposed MCP servers with the `mcpsec`
+engine; this is the deliberate, authenticated one you run yourself.
+
+→ [Tools, client wiring, and the safety model](docs/mcp.md)
+
+---
+
 ## Configuration
 
 Copy `.env.example` to `.env` to change anything. Common ones:
@@ -299,7 +319,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 965 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 979 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 
