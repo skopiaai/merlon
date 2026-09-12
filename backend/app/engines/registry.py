@@ -72,6 +72,21 @@ class EngineSpec:
     default_in: tuple[str, ...] = ()   # depth presets: quick | standard | deep
     skip_cdn: bool = False          # pointless against a CDN edge
     limit: int = 0                  # cap on targets passed in (0 = no cap)
+
+    # Rule ids this engine *demonstrates* rather than infers.
+    #
+    # A rule belongs here only when detection itself is a deterministic
+    # demonstration that the bug exists: the server computed arithmetic we
+    # injected, a database returned its own error for our quote, a signature we
+    # recomputed matched. Not "the pattern looked right" — the difference is
+    # whether a sceptical triager could re-run the evidence and be forced to the
+    # same conclusion.
+    #
+    # verify.py reads this to award the `proven` tier. Putting a rule here that
+    # only infers would quietly promote guesses into the submit queue, which is
+    # the exact failure the verification gate exists to prevent.
+    proves: tuple[str, ...] = ()
+
     run: RunFn | None = field(default=None, compare=False)
 
     def with_run(self, fn: RunFn) -> EngineSpec:

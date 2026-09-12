@@ -128,6 +128,9 @@ _DIFF = 0.85      # false-response must be below this to count as "different"
     weight=7,
     limit=40,
     default_in=("deep",),
+    # A database returned its own error for our quote, or answered a
+    # true/false pair differently. Both are demonstrations, not inferences.
+    proves=("sqli-error", "sqli-boolean"),
 ))
 async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     log = ctx.get("log")

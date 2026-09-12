@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-1010%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-1019%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Merlon runs 40 detection engines over a target, normalises everything they
@@ -30,7 +30,8 @@ and **working Hack The Box machines and CTFs** without leaving the app.
 >   on nuclei templates rather than dedicated engines. A clean scan is not proof
 >   a target is clean.
 > * **Findings still need a human.** The verification gate re-tests everything
->   and ranks by what reproduces, which cuts noise sharply — it does not remove
+>   and ranks findings by how well they are established, which cuts noise
+>   sharply — it does not remove
 >   the need to read a finding before you file it.
 > * **Interfaces will change.** Engine names, the finding schema, environment
 >   variables and API routes are not stable yet. Pin a commit if you build on it.
@@ -151,9 +152,28 @@ appear as they are found rather than at the end.
 
 Everything is re-tested after the scan: fetched again, fetched a second time to
 rule out a fluke, and compared against a control request. The submission queue
-is then ordered by **whether a finding reproduces**, not by how severe it claims
-to be — because a critical that does not reproduce costs you more to file than
-it is worth.
+is then ordered by **how well a finding is established**, not by how severe it
+claims to be — because a critical that does not reproduce costs you more to file
+than it is worth.
+
+Findings land in one of four tiers:
+
+| Tier | Means |
+| --- | --- |
+| **proven** | The target demonstrated the bug. It computed arithmetic we injected, returned its own database error for our quote, echoed our tag back as live markup, or matched a signature we recomputed. Not an inference — a sceptical triager re-running the evidence is forced to the same conclusion. |
+| **reproduced** | The result came back the same on an independent retest, and differs from a control request. |
+| **observed** | True at collection time and not decidable by re-fetching a URL — a DNS record, a certificate, an open port. |
+| **unverified** | Did not reproduce. Kept, but never offered for submission. |
+
+Which rules can be proven is declared by each engine next to the code that
+detects them, so the claim cannot drift away from the detection.
+
+The tiers are also the honest answer to "no exploit, no report", the line the
+AI pentesters draw. Merlon proves what it can prove and says so — but a finding
+it could not auto-prove is **not thereby false**, it is *unproven*, and that is
+a different word. Those are kept and ranked below the proven ones rather than
+thrown away, because the bug class that pays best is often the one no scanner
+can demonstrate on its own.
 
 → [How scanning works, depth profiles, engine list](docs/scanning.md)
 → [Authenticated and multi-account scanning](docs/authenticated.md)
@@ -320,7 +340,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 1010 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 1019 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 

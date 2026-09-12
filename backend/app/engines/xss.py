@@ -115,6 +115,8 @@ def inject(url: str, param: str, value: str) -> str:
     weight=6,
     limit=40,
     default_in=("deep",),
+    # Our nonsense tag came back as live markup: the injection is shown.
+    proves=("xss-reflected",),
 ))
 async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     log = ctx.get("log")

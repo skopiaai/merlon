@@ -128,6 +128,8 @@ def inject(url: str, param: str, value: str) -> str:
     weight=6,
     limit=40,
     default_in=("deep",),
+    # The server computed arithmetic we injected — the sink is demonstrated.
+    proves=("ssti-arithmetic",),
 ))
 async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     log = ctx.get("log")

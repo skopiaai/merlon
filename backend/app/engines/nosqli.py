@@ -127,6 +127,7 @@ _DIFF = 0.85
     weight=6,
     limit=40,
     default_in=("deep",),
+    proves=("nosqli-error", "nosqli-operator"),
 ))
 async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     log = ctx.get("log")

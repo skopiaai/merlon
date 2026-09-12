@@ -240,6 +240,9 @@ def _finding(host: str, url: str, source: str, token: str, issue: dict) -> dict:
     weight=3,
     limit=40,
     default_in=("standard", "deep"),
+    # Only the cracked secret is a proof — we recomputed the signature and it
+    # matched. alg=none and the expiry rules are observations about a token.
+    proves=("jwt-weak-secret",),
 ))
 async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     log = ctx.get("log")

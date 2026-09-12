@@ -40,6 +40,13 @@ from urllib.parse import urlparse
 
 from .engines import fetch
 
+# How much a deterministic proof at detection time is worth. A rule listed in
+# its engine's `proves` did not pattern-match — it made the target demonstrate
+# the bug (computed our arithmetic, returned its own database error, echoed our
+# tag as live markup, matched a signature we recomputed). That is the strongest
+# evidence this tool can hold, so it clears the submit bar on its own.
+PROOF_BONUS = 0.30
+
 # A finding at or above this reproduces reliably and has evidence to show.
 # Below it, the finding is kept — it may well be real — but it is not offered
 # as something to submit until a human has looked.
@@ -88,22 +95,39 @@ class Evidence:
         }
 
 
+# Ordered strongest first. This is what the submission queue sorts on.
+#
+#   proven      the target demonstrated the bug for us
+#   reproduced  the response came back the same on an independent retest
+#   observed    true at collection time and not decidable by re-fetching a URL
+#               (a DNS record, a certificate, an open port)
+#   unverified  did not reproduce — kept, but not offered for submission
+TIERS = ("proven", "reproduced", "observed", "unverified")
+
+
 @dataclass
 class Verdict:
     confidence: float
     reproduced: bool
     reasons: list[str]
     evidence: list[dict]
+    tier: str = "reproduced"
 
     @property
     def submittable(self) -> bool:
         return self.confidence >= SUBMIT_THRESHOLD
+
+    @property
+    def rank(self) -> int:
+        """Sort key: lower is stronger."""
+        return TIERS.index(self.tier) if self.tier in TIERS else len(TIERS)
 
     def as_dict(self) -> dict:
         return {
             "confidence": round(self.confidence, 2),
             "reproduced": self.reproduced,
             "submittable": self.submittable,
+            "tier": self.tier,
             "reasons": self.reasons,
             "evidence": self.evidence,
         }
@@ -156,6 +180,24 @@ async def capture(url: str, ctx: dict | None = None, *, method: str = "GET",
     )
 
 
+def is_proven_rule(engine: str, rule_id: str) -> bool:
+    """Did this engine *demonstrate* this rule rather than infer it?
+
+    Read from the engine's own `proves` declaration rather than a table here,
+    so the claim lives next to the code that makes it and cannot drift out of
+    step with the detection.
+    """
+    if not engine or not rule_id:
+        return False
+    try:
+        from .engines import registry
+        registry.discover()
+        spec = registry.get(engine)
+    except Exception:  # noqa: BLE001 — verification must survive a bad registry
+        return False
+    return bool(spec and rule_id in (spec.proves or ()))
+
+
 def _evidence_quality(finding: dict) -> tuple[float, list[str]]:
     """How much the finding's own evidence supports it, before any re-request.
 
@@ -197,9 +239,19 @@ async def verify_finding(finding: dict, ctx: dict | None = None) -> Verdict:
       +0.15  a control request behaves differently, so the result is specific
              to the thing being reported rather than to every request
       +0.40  cumulative evidence quality from the engine itself
+      +0.30  the engine *proved* this rule at detection time
       -0.30  it did not reproduce at all
+
+    The proof term is what separates this from a scanner that only pattern
+    matches, and from one that discards everything it cannot exploit. A rule the
+    engine demonstrated is promoted to the `proven` tier; everything else is
+    still kept and ranked below it rather than thrown away, because a finding
+    that cannot be auto-proved is not thereby false — it is unproven, and that
+    is a different word.
     """
     engine = str(finding.get("engine", ""))
+    rule_id = str(finding.get("rule_id", ""))
+    proven = is_proven_rule(engine, rule_id)
     url = finding.get("matched_at") or finding.get("url") or ""
 
     base_score, reasons = _evidence_quality(finding)
@@ -210,10 +262,11 @@ async def verify_finding(finding: dict, ctx: dict | None = None) -> Verdict:
         # These are facts about DNS records, certificates, open ports or bucket
         # ACLs. They don't reproduce via a URL fetch, and pretending otherwise
         # would mark every one of them unverified.
-        confidence = min(1.0, 0.55 + base_score)
+        confidence = min(1.0, 0.55 + base_score + (PROOF_BONUS if proven else 0))
         reasons.insert(0, f"{engine} findings are verified at collection time, "
                           f"not by re-fetching a URL")
-        return Verdict(confidence, True, reasons, captures)
+        return Verdict(confidence, True, reasons, captures,
+                       tier="proven" if proven else "observed")
 
     # --- reproduce ---
     first = await capture(url, ctx)
@@ -221,7 +274,8 @@ async def verify_finding(finding: dict, ctx: dict | None = None) -> Verdict:
 
     if not first.reproduced:
         reasons.insert(0, "did NOT reproduce — the host did not respond on retest")
-        return Verdict(max(0.0, base_score - 0.30), False, reasons, captures)
+        return Verdict(max(0.0, base_score - 0.30), False, reasons, captures,
+                       tier="unverified")
 
     score = base_score + 0.45
     reasons.insert(0, f"reproduced: HTTP {first.status} at {first.at}")
@@ -260,12 +314,24 @@ async def verify_finding(finding: dict, ctx: dict | None = None) -> Verdict:
                        f"similar body — this host answers everything alike, so the "
                        f"finding may be an artefact")
 
+    tier = "reproduced"
+    if proven:
+        score += PROOF_BONUS
+        tier = "proven"
+        reasons.insert(0, f"PROVEN: {engine} demonstrated this at detection time "
+                          f"({rule_id}) — the target itself produced the result, "
+                          f"so this is not an inference")
+
+    # Judgement-call engines never auto-submit, and that outranks a proof:
+    # nothing in ALWAYS_REVIEW declares `proves`, but if one ever did, the
+    # human-review rule is the one that should win.
     if engine in ALWAYS_REVIEW:
         score = min(score, SUBMIT_THRESHOLD - 0.01)
+        tier = "reproduced"
         reasons.append(f"{engine} findings are a judgement call and always get a "
                        f"human look before submission")
 
-    return Verdict(max(0.0, min(1.0, score)), True, reasons, captures)
+    return Verdict(max(0.0, min(1.0, score)), True, reasons, captures, tier=tier)
 
 
 async def verify_scan(scan_id: int, ctx: dict | None = None, *,

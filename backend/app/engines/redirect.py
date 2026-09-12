@@ -131,6 +131,8 @@ def inject(url: str, param: str, value: str) -> str:
     weight=6,
     limit=60,
     default_in=("standard", "deep"),
+    # The Location header points at our unresolvable canary. Nothing to infer.
+    proves=("open-redirect",),
 ))
 async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     log = ctx.get("log")
