@@ -85,6 +85,7 @@ short of the step that would change something on the target.
 | **cors** | Reflected origins, `null` origin, and prefix/suffix bypasses of origin validation | Probe origins use the reserved `.invalid` TLD |
 | **redirect** | Unvalidated redirect parameters, incl. protocol-relative, backslash and userinfo forms | Redirects are read from `Location`, never followed |
 | **methods** | PUT, DELETE, TRACE and WebDAV verbs left enabled | Read from OPTIONS/Allow — never proved by writing |
+| **nosqli** | NoSQL (MongoDB-style) injection via operator injection (param[$ne]) on a strict true/false differential, plus driver errors | GET params only; no $where JavaScript, extraction or writes |
 | **sqli** | SQL injection via database error signatures and a strict boolean true/false differential | GET params only; no stacked queries, time delays or data extraction are ever sent |
 | **ssti** | Server-side template injection, proven by evaluating wrapped random arithmetic (Jinja2, Twig, ERB, Velocity, Razor and more) | Only multiplication is ever evaluated; reflection cannot cause a false positive; existing params only |
 | **jwt** | alg=none, HMAC secrets recovered by recomputing the signature, sensitive claims, and tokens that never expire | Decided from the captured token offline; no forged token is sent |

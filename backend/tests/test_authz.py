@@ -331,3 +331,18 @@ def test_stored_credentials_are_never_returned_by_the_api():
     assert "auth_headers" in source
     assert "eng.auth_headers," not in source.replace(" ", "")
     assert "header_names" in source, "only header names should leave the server"
+
+
+def test_curl_treats_urls_as_data_not_globs():
+    """A URL with brackets must reach the target, not curl's globber.
+
+    By default curl reads `[` and `]` as range/list globbing, so `?filter[]=x`
+    or an operator-injection probe like `user[$ne]=1` fails with "bad range
+    specification" and no request goes out. --globoff is what makes ordinary
+    bracketed URLs work, and the NoSQL engine depends on it.
+    """
+    import inspect
+
+    from app.engines import fetch
+    assert '"--globoff"' in inspect.getsource(fetch._execute), \
+        "curl will treat [] in a URL as a glob and drop the request"

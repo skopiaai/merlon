@@ -131,6 +131,12 @@ async def _execute(url: str, *, method: str = "GET",
     needs in order to compare what different callers can see.
     """
     argv = ["curl", "-sS", "-i", "-k", "--path-as-is",
+            # A URL is data, never a curl glob. By default curl reads `[` and
+            # `]` as range/list globbing, so a perfectly ordinary crawled URL
+            # like `?filter[]=x` — or an operator-injection probe like
+            # `user[$ne]=1` — fails with "bad range specification" and the
+            # request never goes out. --globoff turns that off for every fetch.
+            "--globoff",
             "--max-time", str(timeout),
             "--max-filesize", str(MAX_BODY),
             # Defence in depth against a `Location:` that leaves HTTP entirely.
