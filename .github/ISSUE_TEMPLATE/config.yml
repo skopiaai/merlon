@@ -1,9 +1,9 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability in this tool
-    url: https://github.com/YOUR_USERNAME/YOUR_REPO/security/advisories/new
+    url: https://github.com/skopiaai/merlon/security/advisories/new
     about: >-
       Do NOT open a public issue. Report privately — see SECURITY.md.
   - name: Question about how a detection works
-    url: https://github.com/YOUR_USERNAME/YOUR_REPO/discussions
+    url: https://github.com/skopiaai/merlon/discussions
     about: Ask in Discussions rather than opening an issue.

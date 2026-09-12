@@ -25,7 +25,7 @@ picks an AI model that fits your machine's RAM, builds the containers, and
 opens the UI.
 
 ```bash
-git clone https://github.com/<you>/merlon.git
+git clone https://github.com/skopiaai/merlon.git
 cd merlon
 ./start.sh
 ```
