@@ -4,6 +4,7 @@
 
 **A self-hosted attack surface scanner and Hack The Box companion that runs entirely on your machine.**
 
+[![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
 [![Tests](https://img.shields.io/badge/tests-939%20passing-brightgreen.svg)](backend/tests)
@@ -16,6 +17,29 @@ leaves your machine. No cloud service, no telemetry, no account.
 
 It does three jobs: **bug bounty reconnaissance**, **auditing systems you own**,
 and **working Hack The Box machines and CTFs** without leaving the app.
+
+<a id="beta"></a>
+
+> ### Beta — actively developed
+>
+> Merlon is in **beta** and under active development. It is usable today and the
+> 939-test suite runs on every commit, but treat it accordingly:
+>
+> * **Detection is not exhaustive.** 35 engines cover exposure and
+>   misconfiguration well; injection, client-side and business-logic classes lean
+>   on nuclei templates rather than dedicated engines. A clean scan is not proof
+>   a target is clean.
+> * **Findings still need a human.** The verification gate re-tests everything
+>   and ranks by what reproduces, which cuts noise sharply — it does not remove
+>   the need to read a finding before you file it.
+> * **Interfaces will change.** Engine names, the finding schema, environment
+>   variables and API routes are not stable yet. Pin a commit if you build on it.
+> * **Windows support is new.** The PowerShell launcher landed recently and has
+>   had less real-world use than the macOS and Linux paths.
+>
+> Bug reports and engine contributions are genuinely welcome — see
+> [CONTRIBUTING.md](CONTRIBUTING.md). If something misbehaves, an issue with the
+> scan log attached is the most useful thing you can send.
 
 ---
 
