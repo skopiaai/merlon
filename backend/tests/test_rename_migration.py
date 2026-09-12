@@ -65,8 +65,18 @@ def _run_in(tmp_path: Path, env: dict[str, str] | None = None,
     import os
 
     environ = {**os.environ, **(env or {})}
-    for var in ("PARAPET_DB_PATH", "PARAPET_ARTIFACT_DIR",
-                "SENTINEL_DB_PATH", "SENTINEL_ARTIFACT_DIR"):
+    # Scrub by suffix rather than by name. This list used to spell out the
+    # legacy prefixes — PARAPET_, SENTINEL_ — and was not updated when the
+    # current one became MERLON_. CI sets MERLON_DB_PATH to a real database,
+    # the subprocess inherited it, and `config.DB_PATH.read_text()` read a
+    # SQLite file and died on the version bytes at offset 99. It passed locally
+    # only because no such variable is set there.
+    #
+    # Matching the suffix means the next rename cannot reintroduce this: any
+    # prefix at all is caught, including one that does not exist yet.
+    for var in [k for k in environ
+                if k.endswith(("_DB_PATH", "_ARTIFACT_DIR",
+                               "_TEMPLATE_DIR", "_UPDATE_STATE"))]:
         environ.pop(var, None)
     result = subprocess.run(
         [sys.executable, "-c", textwrap.dedent(code)],

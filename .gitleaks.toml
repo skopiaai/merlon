@@ -1,0 +1,27 @@
+# gitleaks configuration.
+#
+# This repository is a secret scanner. Its own test suite has to contain things
+# that look exactly like credentials, because that is the input the detection
+# engines are being tested against — an AWS example key, a Stripe-shaped token,
+# a JWT. gitleaks finds all of them, correctly, and the job then fails on a
+# repository with no secret in it.
+#
+# So test fixtures are allowlisted by path, and only by path. Application code,
+# configuration, workflows, documentation and data files are all still scanned,
+# which is where a genuinely leaked value would land: this repository stores
+# session cookies at runtime, and catching one of those in a commit is the
+# reason the job exists.
+#
+# The trade-off is stated plainly: a real credential pasted into a file under
+# backend/tests/ would not be caught here. Fixtures are reviewed on that basis,
+# and every value in them is either an upstream documentation sample or
+# obviously invented.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Detection-engine test fixtures — deliberately credential-shaped"
+paths = [
+  '''backend/tests/.*\.py$''',
+]

@@ -122,6 +122,21 @@ jobs:
       # This repository stores session cookies at runtime. A commit that
       # accidentally includes one should be caught here rather than by
       # somebody reading the diff.
-      - uses: gitleaks/gitleaks-action@v2
+      #
+      # The gitleaks *binary* is MIT-licensed and free. The gitleaks-action
+      # wrapper is not: since v2 it refuses to run for an organisation-owned
+      # repository without a paid GITLEAKS_LICENSE secret, and fails the job
+      # with "missing gitleaks license" before scanning anything. Running the
+      # release binary directly gets the same scan, pinned to a known version,
+      # with no licence server in the path.
+      - name: Scan history for secrets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks version
+          # --redact so a real finding does not get reprinted in a public log.
+          /tmp/gitleaks detect --source . --redact --verbose --exit-code 1

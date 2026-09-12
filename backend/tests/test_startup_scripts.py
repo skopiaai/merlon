@@ -275,3 +275,50 @@ def test_favicon_matches_the_react_logo():
         assert d in favicon, (
             f"favicon.svg is missing a path from Logo.tsx: {d[:40]}… "
             f"— the two copies of the mark have drifted apart")
+
+def test_shell_scripts_are_forced_to_lf_for_windows_checkouts():
+    """Without this, the backend container does not start on Windows.
+
+    backend/entrypoint.sh is COPY'd into the image and is the container's CMD.
+    Git on Windows defaults to core.autocrlf=true and rewrites LF to CRLF on
+    checkout, so Docker copies in a file whose shebang ends `\r`. The container
+    then exits with
+
+        exec /usr/local/bin/entrypoint.sh: no such file or directory
+
+    naming a file that is plainly present. Nothing about that message points at
+    line endings, which is what makes it expensive.
+
+    .gitattributes pins these to LF regardless of platform. This asserts the
+    rule covers every shell script and the Dockerfiles, so adding a new one
+    outside the pattern is caught here rather than by a Windows user.
+    """
+    import subprocess
+
+    attrs = ROOT / ".gitattributes"
+    assert attrs.exists(), ".gitattributes is missing — Windows checkouts will "\
+                           "get CRLF and the backend container will not start"
+
+    targets = [str(p.relative_to(ROOT)) for p in SCRIPTS]
+    targets += ["backend/Dockerfile", "docker-compose.yml"]
+
+    result = subprocess.run(
+        ["git", "check-attr", "eol", "--"] + targets,
+        cwd=ROOT, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
+    for line in result.stdout.strip().splitlines():
+        # `git check-attr eol -- <path>` prints "<path>: eol: <value>".
+        path, _attr, value = line.rsplit(": ", 2)
+        assert value == "lf", (
+            f"{path} is not pinned to LF (got {value!r}); a Windows checkout "
+            f"would give it CRLF")
+
+
+def test_powershell_launcher_exists_for_windows():
+    """start.sh is bash. Windows users need something that runs without WSL."""
+    ps1 = ROOT / "start.ps1"
+    assert ps1.exists(), "no PowerShell launcher — Windows needs WSL without it"
+    text = ps1.read_text(encoding="utf-8")
+    assert "docker compose up" in text, "start.ps1 never brings the stack up"
+    assert "Docker.DockerDesktop" in text, "start.ps1 cannot install Docker"

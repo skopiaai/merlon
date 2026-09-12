@@ -1,0 +1,40 @@
+# Line endings, and why this file is not optional.
+#
+# backend/entrypoint.sh is COPY'd into the image and is the container's CMD.
+# Git on Windows defaults to core.autocrlf=true, which rewrites LF to CRLF on
+# checkout. Docker then copies a file whose shebang reads `#!/usr/bin/env sh\r`,
+# and the container exits immediately with
+#
+#     exec /usr/local/bin/entrypoint.sh: no such file or directory
+#
+# which names a file that is plainly right there. Without this file the backend
+# does not start on Windows at all, and the error gives no hint why.
+#
+# Normalise everything to LF in the repository, and force LF on checkout for
+# anything that is read by a shell or by Linux inside a container.
+* text=auto eol=lf
+
+*.sh            text eol=lf
+entrypoint.sh   text eol=lf
+Dockerfile      text eol=lf
+*.dockerfile    text eol=lf
+docker-compose*.yml text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# PowerShell is the one thing that genuinely wants CRLF: it is only ever run by
+# Windows, and some 5.1 hosts mis-handle a here-string that ends LF-only.
+*.ps1           text eol=crlf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# Never touched.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.db   binary
