@@ -2,7 +2,7 @@ Merlon
 Copyright 2026 Skopia AI
 
 This product includes software developed by the copyright holder and
-distributed under the Apache License, Version 2.0. See LICENSE.
+distributed under the MIT License. See LICENSE.
 
 ================================================================================
 THIRD-PARTY SOFTWARE
@@ -55,8 +55,8 @@ Nmap — Nmap Public Source License (NPSL)
   It restricts redistribution of Nmap within commercial or proprietary products
   without a separate commercial licence from Nmap Software LLC. If you intend
   to distribute this Docker image commercially, or bundle it into a paid
-  product, read the NPSL first — Apache 2.0 on this repository does not and
-  cannot relicense Nmap.
+  product, read the NPSL first — the MIT licence on this repository does not
+  and cannot relicense Nmap.
 
 Volatility 3 — Volatility Software License
   https://github.com/volatilityfoundation/volatility3

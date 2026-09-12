@@ -4,7 +4,8 @@
 
 **A self-hosted attack surface scanner and Hack The Box companion that runs entirely on your machine.**
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
 [![Tests](https://img.shields.io/badge/tests-906%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
@@ -20,9 +21,11 @@ and **working Hack The Box machines and CTFs** without leaving the app.
 
 ## Install and run
 
-One command. It checks Docker, installs and starts Ollama if it is missing,
-picks an AI model that fits your machine's RAM, builds the containers, and
-opens the UI.
+One command. It installs Docker if you don't have it, starts it if it isn't
+running, installs and starts Ollama, picks an AI model that fits your
+machine's RAM, builds the containers, and opens the UI.
+
+**macOS and Linux**
 
 ```bash
 git clone https://github.com/skopiaai/merlon.git
@@ -30,20 +33,49 @@ cd merlon
 ./start.sh
 ```
 
+**Windows** — PowerShell, no WSL needed:
+
+```powershell
+git clone https://github.com/skopiaai/merlon.git
+cd merlon
+.\start.ps1
+```
+
+> If PowerShell refuses to run the script, it is the execution policy, not a
+> problem with the file. Allow local scripts for your user with:
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+>
+> Windows users who prefer WSL can run `./start.sh` inside the distro instead.
+> Docker Desktop must have WSL integration enabled for that distro.
+
 That is the whole setup. It takes about ten minutes the first time (most of it
 downloading detection templates and the model) and about twenty seconds after
 that.
 
-**What `./start.sh` actually does, in order:**
+**Nothing installed yet?** That is fine — the launcher handles it. It asks
+before changing anything, and each install is skippable:
+
+| Platform | Docker | Ollama (optional) |
+| --- | --- | --- |
+| macOS | Homebrew cask, or a link if you have no Homebrew | Homebrew |
+| Linux | Docker's official script, then adds you to the `docker` group | Official install script |
+| Windows | `winget install Docker.DockerDesktop` | `winget install Ollama.Ollama` |
+| WSL | Points you at Docker Desktop's WSL integration | Official install script |
+
+Set `MERLON_AUTO_INSTALL=0` to make the launcher only ever report what is
+missing and never install anything.
+
+**What the launcher actually does, in order** (identical on all three platforms):
 
 | Step | What happens | If it fails |
 | --- | --- | --- |
-| 1 | Checks Docker is running; starts Docker Desktop if it isn't | Tells you exactly which step wedged and how to reset it |
-| 2 | Installs Ollama (Homebrew on macOS, official script on Linux) | Skips it — the app runs without AI triage |
-| 3 | Reads your RAM and picks a model to match | Override with `OLLAMA_MODEL=...` |
-| 4 | Pulls the model in the background | The app starts anyway; triage switches on when it lands |
-| 5 | `docker compose up --build -d` | Prints the build error and what usually causes it |
-| 6 | Waits for the backend, then opens http://127.0.0.1:5173 | Shows the last 40 log lines rather than hanging |
+| 1 | Installs Docker if it is missing, after asking | Prints the install command for your OS and stops |
+| 2 | Starts Docker if it isn't running — Desktop on macOS/Windows, `systemctl` on Linux | Tells you exactly which step wedged and how to reset it |
+| 3 | Installs Ollama and starts it | Skips it — the app runs without AI triage |
+| 4 | Reads your RAM and picks a model to match | Override with `OLLAMA_MODEL=...` |
+| 5 | Pulls the model in the background | The app starts anyway; triage switches on when it lands |
+| 6 | `docker compose up --build -d` | Prints the build error and what usually causes it |
+| 7 | Waits for the backend, then opens http://127.0.0.1:5173 | Shows the last 40 log lines rather than hanging |
 
 **Model sizing.** A 14b model on 8 GB of RAM does not fail cleanly — it swaps,
 and triage takes minutes per finding, which reads as "the app is broken". So
@@ -60,11 +92,18 @@ Set `OLLAMA_MODEL` to override. AI triage is optional throughout — every
 finding is scored by deterministic re-verification, and the model only writes
 commentary.
 
-**Requirements:** Docker Desktop, and about 12 GB of free disk. Everything else
-is installed for you.
+**Requirements:** macOS, Linux, or Windows 10/11, and about 12 GB of free disk.
+Docker is installed for you if you don't have it; everything else runs inside
+the containers. On Windows, Docker Desktop uses the WSL2 backend, which Docker's
+own installer sets up.
 
 **Stop it:** `docker compose down` · **Logs:** `docker compose logs -f backend`
-· **Something wrong:** `./diagnose.sh`
+· **Something wrong:** `./diagnose.sh` · **Wipe scan history and start clean:**
+`./reset.sh` (add `--keep-templates` to avoid re-downloading detection content)
+
+The `docker compose` commands are identical on Windows. `diagnose.sh` and
+`reset.sh` are shell scripts — run them from WSL or Git Bash, or use
+`docker compose down -v` to wipe state from PowerShell.
 
 > ### ⚠️ Read this before you scan anything
 >
@@ -251,4 +290,15 @@ See [NOTICE](NOTICE) for full attribution and licences.
 
 ## Licence
 
-Apache 2.0 — see [LICENSE](LICENSE).
+**MIT — open source.** Free for everything, commercial use included. No
+noncommercial clause, no separate licence to buy, no seat counting.
+
+Use it at work, use it on client engagements, build it into a product, fork it
+and sell the fork. See [LICENSE](LICENSE).
+
+The one thing to check yourself: Merlon orchestrates third-party tools and the
+Docker image redistributes some of them, each under its own licence. Nmap's
+NPSL in particular restricts redistribution inside commercial or proprietary
+products. The MIT licence on this repository covers Merlon's own code and cannot
+relicense them — see [NOTICE](NOTICE) before you redistribute the image
+commercially.

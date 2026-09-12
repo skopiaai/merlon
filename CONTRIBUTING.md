@@ -188,6 +188,6 @@ Redact hostnames, or describe the shape of the problem instead.
 
 ## A note on the licence
 
-Contributions are accepted under Apache 2.0, the same licence as the project.
+Contributions are accepted under the MIT Licence, the same licence as the project.
 By opening a pull request you're agreeing that your contribution can be
 distributed under it.

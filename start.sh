@@ -30,7 +30,13 @@ total_ram_gb() {
   if [ "$(uname -s)" = "Darwin" ]; then
     echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
   elif [ -r /proc/meminfo ]; then
+    # Also correct under WSL, which presents a normal /proc.
     echo $(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 ))
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    # Git Bash on Windows: no /proc, so ask Windows itself.
+    powershell.exe -NoProfile -Command \
+      "[math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB)" \
+      2>/dev/null | tr -d '\r' || echo 0
   else
     echo 0
   fi
@@ -78,10 +84,132 @@ run_timeout() {
   wait "$pid" 2>/dev/null
 }
 
+# ---------- 0. which machine are we on ----------
+#
+# Everything below that touches the system — installing Docker, starting the
+# daemon, opening a browser — differs per platform. Work it out once here
+# rather than sprinkling `uname` tests through the script.
+#
+# WSL is deliberately its own case rather than "Linux": Docker Desktop for
+# Windows integrates with WSL, so the daemon is usually already provided from
+# the Windows side and installing docker-ce *inside* the distro is the wrong
+# fix for "docker: command not found".
+case "$(uname -s)" in
+  Darwin) PLATFORM="macos" ;;
+  Linux)
+    if grep -qiE "microsoft|wsl" /proc/version 2>/dev/null; then
+      PLATFORM="wsl"
+    else
+      PLATFORM="linux"
+    fi
+    ;;
+  MINGW*|MSYS*|CYGWIN*) PLATFORM="windows" ;;
+  *)                    PLATFORM="unknown" ;;
+esac
+
+# Root already, or a sudo we can reach. Empty means "cannot elevate", which is
+# a refusal to guess rather than an error — the caller decides what to do.
+SUDO=""
+if [ "$(id -u 2>/dev/null || echo 0)" -ne 0 ]; then
+  command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+fi
+
+open_url() {
+  case "$PLATFORM" in
+    macos)   open "$1" >/dev/null 2>&1 || true ;;
+    linux)   xdg-open "$1" >/dev/null 2>&1 || true ;;
+    wsl)     wslview "$1" >/dev/null 2>&1 \
+               || powershell.exe -NoProfile -Command "Start-Process '$1'" >/dev/null 2>&1 \
+               || true ;;
+    windows) start "" "$1" >/dev/null 2>&1 || true ;;
+    *)       true ;;
+  esac
+}
+
+# Ask before changing the machine. Non-interactive runs (CI, piped input) must
+# not hang waiting for a keystroke, so no TTY means "don't install".
+confirm() {
+  [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] || return 1
+  [ -t 0 ] || return 1
+  printf "  \033[33m?\033[0m %s [y/N] " "$1"
+  read -r reply </dev/tty 2>/dev/null || return 1
+  case "$reply" in [yY]*) return 0 ;; *) return 1 ;; esac
+}
+
 bold "Merlon · by Skopia AI"
 
 # ---------- 1. Docker ----------
-command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Get Docker Desktop from docker.com."
+#
+# Docker is the one hard requirement — everything the scanner runs lives in the
+# image. If it is missing we offer to install it rather than printing a URL and
+# quitting, because "one command and everything happens" is the whole point of
+# this script.
+install_docker() {
+  case "$PLATFORM" in
+    macos)
+      if ! command -v brew >/dev/null 2>&1; then
+        warn "Homebrew isn't installed, so this can't be automated."
+        info "Install Docker Desktop from https://docker.com/products/docker-desktop"
+        info "or install Homebrew first: https://brew.sh"
+        return 1
+      fi
+      confirm "Install Docker Desktop with Homebrew? (a few GB)" || return 1
+      info "installing Docker Desktop — this takes a few minutes…"
+      brew install --cask docker || return 1
+      ok "Docker Desktop installed"
+      ;;
+
+    linux)
+      warn "This installs Docker Engine from Docker's official script and needs root."
+      info "The script is https://get.docker.com — read it first if you would rather."
+      [ -n "$SUDO" ] || { warn "No sudo available. Install Docker as root, then rerun."; return 1; }
+      confirm "Install Docker Engine now?" || return 1
+      info "installing (you may be asked for your password)…"
+      curl -fsSL https://get.docker.com -o /tmp/get-docker.sh || return 1
+      $SUDO sh /tmp/get-docker.sh || return 1
+      rm -f /tmp/get-docker.sh
+      $SUDO systemctl enable --now docker >/dev/null 2>&1 || true
+      # Without this every later docker call needs sudo, which then writes
+      # root-owned files into the project directory.
+      if [ -n "${USER:-}" ] && ! id -nG "$USER" 2>/dev/null | grep -qw docker; then
+        $SUDO usermod -aG docker "$USER" >/dev/null 2>&1 || true
+        warn "Added $USER to the 'docker' group — log out and back in for it to apply."
+        info "Until then, docker commands need sudo."
+      fi
+      ok "Docker Engine installed"
+      ;;
+
+    wsl)
+      warn "Inside WSL, Docker normally comes from Docker Desktop on Windows."
+      info "Install Docker Desktop on Windows, then enable this distro under"
+      info "Settings → Resources → WSL integration. That is the supported path."
+      info "Alternatively install Docker Engine inside this distro with:"
+      info "  curl -fsSL https://get.docker.com | sudo sh"
+      return 1
+      ;;
+
+    windows)
+      warn "Automated install isn't available from Git Bash."
+      info "Run this in PowerShell:  winget install -e --id Docker.DockerDesktop"
+      info "or download it from https://docker.com/products/docker-desktop"
+      info "Then reopen this shell and rerun ./start.sh"
+      info "(On Windows, start.ps1 in PowerShell does all of this for you.)"
+      return 1
+      ;;
+
+    *)
+      info "Install Docker from https://docker.com, then rerun."
+      return 1
+      ;;
+  esac
+}
+
+if ! command -v docker >/dev/null 2>&1; then
+  warn "Docker isn't installed — it is required, everything runs in containers."
+  install_docker || die "Docker is still missing. Install it, then rerun ./start.sh"
+  command -v docker >/dev/null 2>&1 \
+    || die "Docker was installed but isn't on PATH yet. Open a new terminal and rerun."
+fi
 
 info "checking Docker…"
 
@@ -108,8 +236,40 @@ case $docker_status in
        Docker Desktop → Settings → Troubleshoot → Clean / Purge data"
     ;;
   *)
-    warn "Docker isn't running — starting Docker Desktop…"
-    open -a Docker 2>/dev/null || die "Couldn't launch Docker Desktop. Open it manually, then rerun."
+    # How you start the daemon is entirely platform-specific: a desktop app on
+    # macOS and Windows, a system service on Linux, and on WSL something that
+    # lives on the Windows side and cannot be started from in here at all.
+    warn "Docker isn't running — starting it…"
+    case "$PLATFORM" in
+      macos)
+        open -a Docker 2>/dev/null \
+          || die "Couldn't launch Docker Desktop. Open it manually, then rerun."
+        ;;
+      linux)
+        if command -v systemctl >/dev/null 2>&1 && [ -n "$SUDO" ]; then
+          $SUDO systemctl start docker \
+            || die "Couldn't start the docker service. Try: sudo systemctl start docker"
+        elif command -v service >/dev/null 2>&1 && [ -n "$SUDO" ]; then
+          $SUDO service docker start || die "Couldn't start Docker. Start it, then rerun."
+        else
+          die "Docker isn't running and it can't be started automatically.
+     Start it with:  sudo systemctl start docker"
+        fi
+        ;;
+      wsl)
+        die "Docker isn't reachable from WSL.
+
+     Start Docker Desktop on Windows, then check that this distro is enabled
+     under Settings → Resources → WSL integration. Rerun once it is running."
+        ;;
+      windows)
+        powershell.exe -NoProfile -Command "Start-Process 'Docker Desktop'" >/dev/null 2>&1 \
+          || die "Couldn't launch Docker Desktop. Open it from the Start menu, then rerun."
+        ;;
+      *)
+        die "Docker isn't running. Start it, then rerun."
+        ;;
+    esac
     printf "  waiting for Docker"
     for _ in $(seq 1 60); do
       run_timeout 5 docker info && break
@@ -166,7 +326,7 @@ else
   # Offer to install rather than just reporting the absence: "one command and
   # everything happens" is the point of this script.
   warn "Ollama isn't installed — it powers AI triage and JS analysis."
-  if [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Darwin" ] \
+  if [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] && [ "$PLATFORM" = "macos" ] \
      && command -v brew >/dev/null 2>&1; then
     info "installing via Homebrew (ctrl-C to skip)…"
     if brew install ollama >/dev/null 2>&1; then
@@ -178,7 +338,8 @@ else
     else
       warn "Homebrew install failed. Get it from ollama.com; the app runs without it."
     fi
-  elif [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
+  elif [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] \
+       && { [ "$PLATFORM" = "linux" ] || [ "$PLATFORM" = "wsl" ]; }; then
     info "installing via the official script (ctrl-C to skip)…"
     if curl -fsSL https://ollama.com/install.sh | sh >/tmp/ollama-install.log 2>&1; then
       ok "Ollama installed"
@@ -187,6 +348,15 @@ else
       nohup ollama pull "$MODEL" >/tmp/ollama-pull.log 2>&1 &
     else
       warn "Install failed (see /tmp/ollama-install.log). The app runs without it."
+    fi
+  elif [ "${MERLON_AUTO_INSTALL:-1}" = "1" ] && [ "$PLATFORM" = "windows" ] \
+       && command -v winget.exe >/dev/null 2>&1; then
+    info "installing via winget (ctrl-C to skip)…"
+    if winget.exe install -e --id Ollama.Ollama --accept-source-agreements \
+         --accept-package-agreements >/dev/null 2>&1; then
+      ok "Ollama installed — it starts with Windows; rerun to use AI triage"
+    else
+      warn "winget install failed. Get it from ollama.com; the app runs without it."
     fi
   else
     warn "Skipping — install from ollama.com to enable AI triage."
@@ -320,4 +490,4 @@ echo "  Stop with:  docker compose down"
 echo "  Logs with:  docker compose logs -f backend"
 echo
 sleep 1
-open "$UI" 2>/dev/null || true
+open_url "$UI"
