@@ -32,6 +32,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # arm64 is emulated on an amd64 runner, so this is needed before buildx
+      # can produce it. It makes the release build slow; shipping an image half
+      # the audience cannot run is worse.
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
@@ -56,6 +61,11 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
+          # v0.1.0 shipped amd64 only, and `docker pull` failed outright on
+          # Apple Silicon with "no matching manifest for linux/arm64/v8" — a
+          # large share of the people this tool is for. CI runs on amd64, so
+          # nothing caught it until the image was pulled on an arm64 machine.
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
             ${{ steps.meta.outputs.image }}:latest

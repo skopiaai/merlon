@@ -61,6 +61,10 @@ at which the interfaces are worth pinning to.
 ### Known limits
 
 * Beta. Engine names, the finding schema and API routes are not stable yet.
+* The v0.1.0 GHCR images are **amd64 only** — `docker pull` fails on Apple
+  Silicon with "no matching manifest for linux/arm64/v8". Build from source with
+  `./start.sh`, which builds for your own architecture and is the supported
+  path. Releases after this one are multi-arch.
 * No out-of-band collaborator, so blind SSRF and blind XXE are out of reach.
 * Detection is uneven across classes — a clean scan is not proof a target is
   clean.
