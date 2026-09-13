@@ -284,39 +284,29 @@ def create_scan(payload: schemas.ScanCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/quickscan", response_model=schemas.ScanOut, status_code=201)
 def quick_scan(payload: schemas.QuickScanRequest, db: Session = Depends(get_db)):
-    """Type a domain, get a scan. Derives scope, reuses the engagement."""
-    if not payload.authorized:
-        raise HTTPException(403, "You must confirm you own or are authorized to test this target.")
+    """Type a domain, get a scan. Derives scope, reuses the engagement.
+
+    The derivation itself lives in `scans.create_quick_scan`, shared with the
+    MCP tool and the CLI so the authorisation and scope rules cannot drift
+    between the three ways in.
+    """
+    from . import scans as scans_mod
 
     try:
-        host = scope.normalize_host(payload.target)
-    except scope.ScopeViolation as exc:
-        raise HTTPException(400, f"Could not read that as a domain: {exc}") from exc
-
-    rules = [host] + ([f"*.{host}"] if payload.include_subdomains else [])
-
-    eng = db.scalar(select(Engagement).where(Engagement.name == host))
-    if eng is None:
-        eng = Engagement(
-            name=host,
-            kind="self_owned",
+        scan = scans_mod.create_quick_scan(
+            db, payload.target,
+            authorized=payload.authorized,
+            depth=payload.depth,
+            include_subdomains=payload.include_subdomains,
             authorized_by=payload.authorized_by,
-            authorization_ref=payload.authorization_ref or f"Self-attested ownership of {host}",
-            allow_rules=rules,
-            deny_rules=[],
+            authorization_ref=payload.authorization_ref,
+            source="quickscan",
         )
-        db.add(eng)
-        db.commit()
-        db.refresh(eng)
-    elif sorted(eng.allow_rules) != sorted(rules):
-        eng.allow_rules = rules
-        db.commit()
+    except scans_mod.NotAuthorized as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except scans_mod.BadTarget as exc:
+        raise HTTPException(400, str(exc)) from exc
 
-    profile, stages = schemas.DEPTH_PRESETS[payload.depth]
-    scan = Scan(engagement_id=eng.id, seeds=[host], profile=profile, stages=stages)
-    db.add(scan)
-    db.commit()
-    db.refresh(scan)
     orchestrator.start_scan(scan.id)
     return scan
 

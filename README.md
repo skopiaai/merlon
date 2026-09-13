@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-1041%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-1053%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Merlon runs 42 detection engines over a target, normalises everything they
@@ -302,6 +302,37 @@ now sorts above one that merely exists.
 
 ---
 
+## Run it headless, or in CI
+
+The web UI is the good way to work a target by hand. For a scheduled scan, a
+script, or someone else's pipeline there is a command line:
+
+```bash
+python -m app.cli scan --target example.com --authorized --json report.json
+```
+
+It refuses without `--authorized`, exactly like every other way in — the scan is
+created by the same shared function the web UI and the MCP tool call, so there
+is no third set of scope rules to drift.
+
+**As a GitHub Action**, to gate a deploy on what a scan proves:
+
+```yaml
+- uses: skopiaai/merlon@v0.1.0
+  with:
+    target: staging.example.com
+    authorized: "true"          # you confirm you may test this host
+    fail-on: high
+    only-proven: "true"         # fail only on findings the target demonstrated
+```
+
+`only-proven` is the setting that makes a build gate tolerable: it cannot fire
+on something merely inferred. The severity ordering lives in the CLI where it is
+tested, not inline in the workflow — a gate that silently stops gating is worse
+than no gate.
+
+---
+
 ## Drive it from an agent (MCP)
 
 Merlon speaks the [Model Context Protocol](https://modelcontextprotocol.io), so
@@ -340,7 +371,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 1041 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 1053 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 

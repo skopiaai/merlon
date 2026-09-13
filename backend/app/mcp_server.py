@@ -171,52 +171,30 @@ class MerlonMCP:
         target = (args.get("target") or "").strip()
         if not target:
             raise _ToolError("target is required")
-        # The gate. An agent cannot remove it by phrasing the request differently.
+        # The gate. An agent cannot remove it by phrasing the request
+        # differently — and it is enforced again inside create_quick_scan,
+        # which is the single implementation the web UI and CLI also use.
         if args.get("authorized") is not True:
             raise _ToolError(
                 "Refused: scanning a target requires authorized=true, confirming "
                 "you own or are permitted to test it. Set it only when that is "
                 "genuinely the case — it is the record that protects the operator.")
 
-        from sqlalchemy import select
-
-        from . import schemas, scope
-        from .models import Engagement, Scan
-
-        try:
-            host = scope.normalize_host(target)
-        except scope.ScopeViolation as exc:
-            raise _ToolError(f"could not read that as a domain: {exc}") from exc
-
-        depth = args.get("depth") or "standard"
-        if depth not in schemas.DEPTH_PRESETS:
-            raise _ToolError(f"unknown depth {depth!r}; choose from {_depths()}")
-        include_subs = args.get("include_subdomains", True)
-        rules = [host] + ([f"*.{host}"] if include_subs else [])
+        from . import scans as scans_mod
 
         with self._session() as db:
-            eng = db.scalar(select(Engagement).where(Engagement.name == host))
-            if eng is None:
-                eng = Engagement(
-                    name=host, kind="self_owned",
+            try:
+                scan = scans_mod.create_quick_scan(
+                    db, target,
+                    authorized=True,
+                    depth=args.get("depth") or "standard",
+                    include_subdomains=args.get("include_subdomains", True),
                     authorized_by=args.get("authorized_by") or "self-attested (owner)",
-                    authorization_ref=f"Self-attested ownership of {host} (via MCP)",
-                    allow_rules=rules, deny_rules=[],
+                    source="MCP",
                 )
-                db.add(eng)
-                db.commit()
-                db.refresh(eng)
-            elif sorted(eng.allow_rules) != sorted(rules):
-                eng.allow_rules = rules
-                db.commit()
-
-            profile, stages = schemas.DEPTH_PRESETS[depth]
-            scan = Scan(engagement_id=eng.id, seeds=[host],
-                        profile=profile, stages=stages)
-            db.add(scan)
-            db.commit()
-            db.refresh(scan)
-            scan_id = scan.id
+            except (scans_mod.NotAuthorized, scans_mod.BadTarget) as exc:
+                raise _ToolError(str(exc)) from exc
+            scan_id, host, depth = scan.id, scan.seeds[0], scan.profile
 
         self._start_scan(scan_id)
         return {"scan_id": scan_id, "target": host, "depth": depth,

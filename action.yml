@@ -1,0 +1,76 @@
+name: "Merlon scan"
+description: >-
+  Scan a target you are authorised to test and fail the build on findings at or
+  above a severity threshold. Runs entirely in your runner; nothing leaves it.
+author: "Skopia AI"
+
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  target:
+    description: "Domain or URL to scan, e.g. staging.example.com"
+    required: true
+  authorized:
+    description: >-
+      Must be the string "true". You confirm you own this target or are
+      permitted to test it. The scan refuses to start otherwise.
+    required: true
+  authorized-by:
+    description: "Who authorised the work — recorded on the engagement."
+    required: false
+    default: "github-actions"
+  depth:
+    description: "quick | standard | deep"
+    required: false
+    default: "standard"
+  fail-on:
+    description: >-
+      Fail the build if a finding at or above this severity is found:
+      critical | high | medium | low | info | never
+    required: false
+    default: "high"
+  only-proven:
+    description: >-
+      Count only findings the scanner proved (the target demonstrated them),
+      ignoring merely-reproduced ones. Fewer false alarms in a gate.
+    required: false
+    default: "false"
+  image:
+    description: "Backend image to run."
+    required: false
+    default: "ghcr.io/skopiaai/merlon-backend:latest"
+
+outputs:
+  findings:
+    description: "Total findings recorded."
+    value: ${{ steps.scan.outputs.findings }}
+  report:
+    description: "Path to the JSON report."
+    value: ${{ steps.scan.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Refuse without authorisation
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "${{ inputs.authorized }}" != "true" ]; then
+          echo "::error::Merlon refuses to scan without authorized: 'true'."
+          echo "Set it only when you own the target or are permitted to test it."
+          exit 1
+        fi
+
+    - name: Run the scan
+      id: scan
+      shell: bash
+      env:
+        MERLON_IMAGE: ${{ inputs.image }}
+        TARGET: ${{ inputs.target }}
+        DEPTH: ${{ inputs.depth }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        ONLY_PROVEN: ${{ inputs.only-proven }}
+        AUTHORIZED_BY: ${{ inputs.authorized-by }}
+      run: bash "${{ github.action_path }}/.github/action/scan.sh"
