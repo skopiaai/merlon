@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from .. import memory
 from ..models import Severity
 from ..normalize import make_dedupe_key
 from . import fetch
@@ -117,6 +118,18 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
     findings: list[dict] = []
     requests_sent = 0
 
+    # Names that paid off on earlier scans go first, and a name learned from a
+    # real finding is added if the built-in list never had it. Nothing is
+    # dropped, so a capped run simply spends its budget where the evidence says
+    # it should. Memory can never create a finding — it only decides what gets
+    # guessed, and every guess still has to survive the same differential test.
+    remembered = memory.recall_params()
+    candidates = memory.prioritise(CANDIDATES, remembered)
+    if remembered and log:
+        await log("info",
+                  f"[paramminer] trying {len(remembered)} name(s) remembered "
+                  f"from earlier scans first", "paramminer")
+
     async def mine(url: str) -> list[dict]:
         nonlocal requests_sent
         host = (urlparse(url).hostname or "").lower()
@@ -145,7 +158,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
             return differs(base_status, base_len, base_body,
                            resp.status, len(resp.body), resp.body)
 
-        for group in chunk(CANDIDATES):
+        for group in chunk(candidates):
             if not await test(group):
                 continue
             # Bisect down to the individual name.

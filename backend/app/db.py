@@ -169,7 +169,7 @@ def _repair_nulls(conn, insp) -> None:
 
 
 def init_db():
-    from . import models  # noqa: F401  (registers mappers)
+    from . import memory, models  # noqa: F401  (registers mappers)
     Base.metadata.create_all(engine)
     return ensure_schema()
 

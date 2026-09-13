@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-1081%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-1093%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Merlon runs 42 detection engines over a target, normalises everything they
@@ -295,6 +295,14 @@ engines' worth of it:
 Mapped to both the OWASP LLM Top 10 (2025) and the Agentic Top 10 (2026), since
 a 2026 audit asks about ASI identifiers and LLM01 alone no longer answers it.
 
+**It gets better as you use it** — parameter names that actually yielded
+findings are remembered across scans and tried first on the next target, with a
+name that reached `proven` weighted far above one merely reported. A name learned
+from a real finding is added to the candidate list that could never have known
+about it. Memory only decides what gets *guessed*; every guess still has to
+survive the same tests, so it can never turn yesterday's hunch into today's
+finding.
+
 **Prioritisation** — CISA KEV enrichment, so a CVE that is being exploited right
 now sorts above one that merely exists.
 
@@ -374,7 +382,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 1081 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 1093 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 

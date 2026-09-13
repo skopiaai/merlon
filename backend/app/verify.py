@@ -392,6 +392,18 @@ async def verify_scan(scan_id: int, ctx: dict | None = None, *,
                 submittable += 1
         db.commit()
 
+        # Carry what this scan learned into the next one. Done here because the
+        # tier is only known after verification, and a name that reached
+        # `proven` is worth far more as a hint than one that merely appeared.
+        # Wrapped because a memory failure must never fail a verification pass.
+        try:
+            from . import memory
+            verified = [db.get(Finding, fid) for fid, _v in results]
+            memory.learn_from_findings(db, [f for f in verified if f])
+            db.commit()
+        except Exception:  # noqa: BLE001 — memory is an optimisation, not a duty
+            db.rollback()
+
     if log:
         dead = sum(1 for _i, v in results if not v.reproduced)
         if dead:
