@@ -102,8 +102,40 @@ jobs:
         with:
           context: ./backend
           push: false
+          # Loaded into the daemon so the next step can actually run it. A
+          # build that succeeds can still produce an image whose entrypoint is
+          # broken, whose app will not import, or that quietly lost a package —
+          # none of which a build-only job would notice.
+          load: true
+          tags: merlon-backend:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke-test the backend image
+        run: |
+          set -euo pipefail
+          img=merlon-backend:ci
+
+          echo "--- the app imports and the CLI exists ---"
+          docker run --rm "$img" python -m app.cli scan --help > /dev/null
+
+          echo "--- every engine loads inside the image ---"
+          count=$(docker run --rm "$img" python -c \
+            "from app.engines import registry; registry.discover(); print(len(registry.all_engines()))")
+          echo "engines: $count"
+          [ "$count" -ge 40 ] || { echo "::error::only $count engines loaded"; exit 1; }
+
+          echo "--- the MCP server answers a handshake ---"
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' \
+            | docker run --rm -i "$img" python -m app.mcp_server \
+            | grep -q '"serverInfo"' \
+            || { echo "::error::MCP server did not respond"; exit 1; }
+
+          echo "--- chromium is present (DOM XSS and screenshots need it) ---"
+          docker run --rm "$img" python -c \
+            "from app.engines import browser; import sys; \
+             print('chrome:', browser.binary()); sys.exit(0 if browser.available() else 1)" \
+            || { echo "::error::no browser in the image — domxss and screenshots would silently skip"; exit 1; }
       - name: Build frontend image
         uses: docker/build-push-action@v6
         with:
