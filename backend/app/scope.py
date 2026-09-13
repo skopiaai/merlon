@@ -67,6 +67,20 @@ class ScopeViolation(Exception):
     """Raised when a target fails scope validation. Never swallow this."""
 
 
+# A hostname is dot-separated labels of letters, digits, hyphen and underscore.
+# Underscore is allowed deliberately: `_dmarc.example.com` and `_acme-challenge`
+# are real names this tool looks up. A label may not start or end with a hyphen,
+# no label exceeds 63 characters, and the whole name stays within 253.
+#
+# A single label with no dot is accepted — `localhost` and an internal short
+# name are legitimate targets, and requiring a dot would reject them.
+_HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}$)"
+    r"[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?"
+    r"(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*$"
+)
+
+
 def normalize_host(value: str) -> str:
     """Reduce a URL, host:port, or bare host to a lowercase hostname."""
     value = value.strip().lower()
@@ -82,6 +96,20 @@ def normalize_host(value: str) -> str:
     value = value.rstrip(".")
     if not value:
         raise ScopeViolation("could not extract a hostname")
+
+    # Shape check. Without it a typo sails through — `normalize_host("not a
+    # domain!!")` used to return that string verbatim, the scan was created
+    # against it, every engine found nothing, and the operator got an empty
+    # report rather than an error. An empty result that looks like a clean bill
+    # of health is the worst failure this tool can have.
+    #
+    # IP literals are accepted first and unconditionally: IPv6 is full of
+    # colons and would never survive a hostname pattern, and Hack The Box lives
+    # on bare addresses.
+    if _as_ip(value) is None and not _HOSTNAME_RE.match(value):
+        raise ScopeViolation(
+            f"{value!r} is not a valid hostname — check for a typo, a stray "
+            f"space, or a copied character that is not part of the name")
     return value
 
 
