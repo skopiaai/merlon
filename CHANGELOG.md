@@ -61,9 +61,6 @@ at which the interfaces are worth pinning to.
 ### Known limits
 
 * Beta. Engine names, the finding schema and API routes are not stable yet.
-* The GHCR images are published private by default, so `docker pull` needs the
-  package visibility set to public first. Building from source with `./start.sh`
-  is the supported path and needs nothing.
 * No out-of-band collaborator, so blind SSRF and blind XXE are out of reach.
 * Detection is uneven across classes — a clean scan is not proof a target is
   clean.

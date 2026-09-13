@@ -326,9 +326,8 @@ is no third set of scope rules to drift.
     only-proven: "true"         # fail only on findings the target demonstrated
 ```
 
-The Action pulls a prebuilt image. GHCR publishes new packages private, so set
-the package public once (Packages → merlon-backend → Change visibility) or point
-`image:` at your own build.
+The Action pulls a prebuilt image from GHCR. Point `image:` at your own build if
+you would rather not.
 
 `only-proven` is the setting that makes a build gate tolerable: it cannot fire
 on something merely inferred. The severity ordering lives in the CLI where it is
