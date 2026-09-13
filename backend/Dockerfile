@@ -147,6 +147,24 @@ RUN set -eux; \
     done; \
     rm -rf /var/lib/apt/lists/*
 
+# --- headless browser ---
+# Needed for the two things an HTTP fetch structurally cannot do: DOM-based XSS
+# (the payload never appears in the response — a fragment is not even sent to
+# the server) and screenshots for visual triage.
+#
+# Chromium and its fonts are the largest single addition to this image, and
+# that is a deliberate trade: without it an entire vulnerability class is
+# invisible. Installed with the same tolerant pattern as the CTF tools, because
+# the engines call browser.available() and skip cleanly when it is absent — a
+# build that cannot get Chromium should still produce a working scanner.
+RUN set -eux; \
+    apt-get update; \
+    for pkg in chromium fonts-liberation fonts-dejavu-core; do \
+        apt-get install -y --no-install-recommends "$pkg" \
+          || echo "WARN: '$pkg' unavailable on $(dpkg --print-architecture) — DOM XSS and screenshots will be skipped"; \
+    done; \
+    rm -rf /var/lib/apt/lists/*
+
 # Report what actually made it in, so the build log answers "do I have X?".
 RUN set +e; \
     echo "--- CTF toolchain present ---"; \
