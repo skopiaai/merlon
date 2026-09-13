@@ -85,6 +85,7 @@ short of the step that would change something on the target.
 | **cors** | Reflected origins, `null` origin, and prefix/suffix bypasses of origin validation | Probe origins use the reserved `.invalid` TLD |
 | **redirect** | Unvalidated redirect parameters, incl. protocol-relative, backslash and userinfo forms | Redirects are read from `Location`, never followed |
 | **methods** | PUT, DELETE, TRACE and WebDAV verbs left enabled | Read from OPTIONS/Allow — never proved by writing |
+| **screenshots** | A screenshot of every live host for visual triage | Produces no findings — images are written to the artifact directory and the path recorded on the asset |
 | **domxss** | DOM-based XSS proven by executing a payload in headless Chromium; the class no body-reading check can see | The payload only sets document.title and runs solely in the scanner's own browser; a fragment never reaches the server |
 | **xss** | Reflected XSS decided from the response: an inert nonsense tag is injected and reported only if it survives unencoded | Reflection-gated; existing GET params only; nothing scripts or changes state |
 | **nosqli** | NoSQL (MongoDB-style) injection via operator injection (param[$ne]) on a strict true/false differential, plus driver errors | GET params only; no $where JavaScript, extraction or writes |
@@ -201,8 +202,10 @@ open-source recon frameworks — and the gaps they exposed have been closed.
 | SARIF export | ✗ | ✓ | ✗ | ✓ |
 | Integration tests vs. a vulnerable target | ✗ | ✓ | ✗ | ✓ |
 
-Headless Chromium now ships in the image, which closed the screenshot gap and
-added something none of the three has: **DOM-based XSS proven by execution**.
+Headless Chromium now ships in the image. Screenshots of every live host are
+captured to the artifact directory and recorded on the asset row (the browsing
+UI for them is not built yet), and it added something none of the three has:
+**DOM-based XSS proven by execution**.
 That class never appears in an HTTP response — a fragment is not even sent to
 the server — so a scanner that only reads response bodies is structurally blind
 to it.

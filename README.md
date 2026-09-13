@@ -7,10 +7,10 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-1034%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-1041%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
-Merlon runs 41 detection engines over a target, normalises everything they
+Merlon runs 42 detection engines over a target, normalises everything they
 emit into one finding schema, re-tests each result to see whether it actually
 reproduces, and drafts the report. A **local** LLM does the triage — nothing
 leaves your machine. No cloud service, no telemetry, no account.
@@ -25,7 +25,7 @@ and **working Hack The Box machines and CTFs** without leaving the app.
 > Merlon is in **beta** and under active development. It is usable today and the
 > 939-test suite runs on every commit, but treat it accordingly:
 >
-> * **Detection is not exhaustive.** 41 engines cover exposure and
+> * **Detection is not exhaustive.** 42 engines cover exposure and
 >   misconfiguration well; injection, client-side and business-logic classes lean
 >   on nuclei templates rather than dedicated engines. A clean scan is not proof
 >   a target is clean.
@@ -340,7 +340,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 1034 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 1041 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 
