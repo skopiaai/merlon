@@ -4,7 +4,7 @@
 
 ## What it will not do
 
-Not missing features — deliberate limits, documented in [SECURITY.md](SECURITY.md):
+Not missing features — deliberate limits, documented in [SECURITY.md](../SECURITY.md):
 
 - **No exploitation.** Takeovers are detected, never claimed. `PUT` is reported
   from the `Allow` header, never proved by writing a file. Redirects are read

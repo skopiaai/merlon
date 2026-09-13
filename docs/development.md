@@ -121,16 +121,16 @@ presets, gets a progress weight, shows a label in the UI, and flows through
 dedupe, compliance mapping and reporting — with no edits to the orchestrator,
 the schemas, or the frontend.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the template and the rules. The
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the template and the rules. The
 short version: put the judgement in a pure function, pass `ctx` to
 `fetch.request`, cap your requests, and **write a test for your detection's
 most likely false positive** — a large fraction of the existing test suite
 exists for exactly that, because precision is what a scanner's reputation is
 made of.
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — adding engines, tests, what won't be merged
-- [SECURITY.md](SECURITY.md) — reporting vulnerabilities, known limitations, acceptable use
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — adding engines, tests, what won't be merged
+- [SECURITY.md](../SECURITY.md) — reporting vulnerabilities, known limitations, acceptable use
+- [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md)
 
 ---
 
