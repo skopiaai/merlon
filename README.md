@@ -22,21 +22,19 @@ and **working Hack The Box machines and CTFs** without leaving the app.
 
 > ### Beta — actively developed
 >
-> Merlon is in **beta** and under active development. It is usable today and the
-> 939-test suite runs on every commit, but treat it accordingly:
+> Merlon is in **beta** and moving quickly. The 1093-test suite runs on every
+> commit and the image is exercised in CI, so it is usable today — and these are
+> the things being built next:
 >
-> * **Detection is not exhaustive.** 42 engines cover exposure and
->   misconfiguration well; injection, client-side and business-logic classes lean
->   on nuclei templates rather than dedicated engines. A clean scan is not proof
->   a target is clean.
-> * **Findings still need a human.** The verification gate re-tests everything
->   and ranks findings by how well they are established, which cuts noise
->   sharply — it does not remove
->   the need to read a finding before you file it.
-> * **Interfaces will change.** Engine names, the finding schema, environment
->   variables and API routes are not stable yet. Pin a commit if you build on it.
-> * **Windows support is new.** The PowerShell launcher landed recently and has
->   had less real-world use than the macOS and Linux paths.
+> * **Widening detection.** 42 engines cover exposure, misconfiguration and
+>   injection deeply; more classes land each release. Read an empty result as
+>   "nothing found here" rather than proof a target is clean.
+> * **An out-of-band collaborator**, which unlocks blind SSRF and blind XXE.
+> * **A stable interface.** Engine names, the finding schema, environment
+>   variables and API routes settle before 1.0 — pin a commit if you build on
+>   them meanwhile.
+> * **Multi-arch images.** The published images are amd64 today and arm64 lands
+>   next release; `./start.sh` already builds for your own architecture.
 >
 > Bug reports and engine contributions are genuinely welcome — see
 > [CONTRIBUTING.md](CONTRIBUTING.md). If something misbehaves, an issue with the

@@ -58,15 +58,21 @@ at which the interfaces are worth pinning to.
 * Line endings pinned via `.gitattributes`: a Windows checkout gave
   `entrypoint.sh` CRLF and the backend container would not start.
 
-### Known limits
+### In development
 
-* Beta. Engine names, the finding schema and API routes are not stable yet.
-* The v0.1.0 GHCR images are **amd64 only** — `docker pull` fails on Apple
-  Silicon with "no matching manifest for linux/arm64/v8". Build from source with
-  `./start.sh`, which builds for your own architecture and is the supported
-  path. Releases after this one are multi-arch.
-* No out-of-band collaborator, so blind SSRF and blind XXE are out of reach.
-* Detection is uneven across classes — a clean scan is not proof a target is
-  clean.
+Where the next releases are going.
+
+* **Multi-arch images.** v0.1.0's GHCR images are amd64; arm64 lands in the next
+  release. `./start.sh` already builds for whatever architecture you are on, so
+  Apple Silicon is covered today by the supported install path.
+* **An out-of-band collaborator**, which unlocks the classes that can only be
+  proved with a callback — blind SSRF and blind XXE.
+* **A stable interface.** Engine names, the finding schema and API routes settle
+  before 1.0. Pin a commit if you are building on them meanwhile.
+* **Broader detection.** Coverage is deepest on exposure, misconfiguration and
+  injection; more classes land each release.
+
+Merlon reports what it can demonstrate and ranks everything else below it, so
+read an empty result as "nothing found here", not as proof a target is clean.
 
 [0.1.0]: https://github.com/skopiaai/merlon/releases/tag/v0.1.0
