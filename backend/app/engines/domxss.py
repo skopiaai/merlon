@@ -26,6 +26,7 @@ Chrome must never fail a scan.
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -138,16 +139,14 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
                       "domxss")
         return []
 
-    for url in targets:
+    # One host at a time was leaving the browser idle between page loads, which
+    # are latency-bound. Hosts now run together; how many Chrome processes that
+    # actually means is decided centrally by browser.MAX_BROWSERS, so this and
+    # the screenshot engine cannot together exhaust the machine.
+    async def examine(url: str) -> dict | None:
         host = (urlparse(url).hostname or "").lower()
-        if not host or host in seen:
-            continue
-
-        # No baseline load. The canary is random per probe, so a page cannot
-        # already contain it, and nothing here compares against a "before"
-        # title — the previous baseline render was a page load per host that
-        # answered no question.
-        hit = None
+        if not host:
+            return None
 
         # Fragment first — it is the commonest DOM-XSS source and never reaches
         # the server, so it is the least intrusive thing we can send.
@@ -155,8 +154,6 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
         vectors += [("param:" + p, p) for p in candidate_params(url)[:3]]
 
         for vector_name, param in vectors:
-            if hit:
-                break
             canary = make_canary()
             for value, kind in probe_values(canary):
                 probe = probe_url(url, vector_name, param, value)
@@ -180,11 +177,26 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
                         sink, shown, at = one_sink, one, one_probe
                         break
 
-                hit = {"payload": shown, "sink": sink, "probe": at,
-                       "vector": vector_name, "canary": canary}
-                break
+                return {"url": url, "host": host, "payload": shown, "sink": sink,
+                        "probe": at, "vector": vector_name, "canary": canary}
+        return None
 
-        if not hit:
+    # One page per host: a gallery of findings from fifty URLs on one site is
+    # the same bug reported fifty times.
+    first_per_host: dict[str, str] = {}
+    for url in targets:
+        host = (urlparse(url).hostname or "").lower()
+        if host and host not in first_per_host:
+            first_per_host[host] = url
+
+    results = await asyncio.gather(
+        *(examine(u) for u in first_per_host.values()), return_exceptions=True)
+
+    for hit in results:
+        if not isinstance(hit, dict):
+            continue
+        host, url = hit["host"], hit["url"]
+        if host in seen:
             continue
         seen.add(host)
         findings.append({

@@ -28,6 +28,8 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 
+from ..config import env
+
 # Where a browser is normally found, in the order we prefer it. The container
 # installs `chromium`; the macOS path is for running outside Docker.
 _CANDIDATES = (
@@ -45,6 +47,33 @@ DEFAULT_TIMEOUT = 20
 # A rendered DOM larger than this tells us nothing extra and costs memory in
 # every engine holding one.
 MAX_DOM = 3 * 1024 * 1024
+
+# How many Chrome processes may exist at once, across the whole scan.
+#
+# The cap is global rather than per engine on purpose. Engines in a phase run
+# concurrently, so domxss and screenshots overlap; a per-engine limit would
+# multiply and a scan box with 8 GB would start swapping, which is slower than
+# running them one at a time. Each headless Chrome is a few hundred megabytes.
+#
+# Three is the default because the win is mostly in the first few — page loads
+# are latency-bound, not CPU-bound — and the memory cost is linear.
+MAX_BROWSERS = max(1, int(env("MAX_BROWSERS", "3") or 3))
+
+# One semaphore per event loop. Bound lazily because an asyncio primitive
+# created at import time belongs to no loop, and recreated when the loop
+# changes so a scan, a CLI run and a test each get a working one rather than a
+# semaphore still holding waiters from a loop that has closed.
+_slots: asyncio.Semaphore | None = None
+_slots_loop = None
+
+
+def _semaphore() -> asyncio.Semaphore:
+    global _slots, _slots_loop
+    loop = asyncio.get_running_loop()
+    if _slots is None or _slots_loop is not loop:
+        _slots = asyncio.Semaphore(MAX_BROWSERS)
+        _slots_loop = loop
+    return _slots
 
 
 @dataclass
@@ -135,11 +164,15 @@ async def render(url: str, *, timeout: int = DEFAULT_TIMEOUT,
     try:
         argv = _argv(chrome, url, profile, screenshot, timeout)
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *argv,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL)
-            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout + 10)
+            # Held only around the process itself, so a caller waiting for a
+            # slot is not also holding one.
+            async with _semaphore():
+                proc = await asyncio.create_subprocess_exec(
+                    *argv,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL)
+                out, _ = await asyncio.wait_for(proc.communicate(),
+                                                timeout=timeout + 10)
         except (asyncio.TimeoutError, OSError) as exc:
             return Render(url=url, error=f"render failed: {exc}")
         except Exception as exc:  # noqa: BLE001 — a bad page must not kill a scan

@@ -17,6 +17,7 @@ absent, because a missing browser must never fail a scan.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from pathlib import Path
@@ -124,15 +125,21 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
         if host and host not in chosen:
             chosen[host] = url
 
-    taken = 0
-    for url in chosen.values():
+    # Captured concurrently — these are latency-bound page loads, and how many
+    # browsers actually run at once is capped centrally in browser.MAX_BROWSERS
+    # so this and the DOM-XSS engine cannot together exhaust the machine.
+    async def capture(url: str) -> bool:
         path = out_dir / safe_name(url)
         render = await browser.render(url, screenshot=str(path))
         if not render.ok:
-            continue
-        taken += 1
+            return False
         if scan_id:
             _record(scan_id, url, str(path))
+        return True
+
+    results = await asyncio.gather(*(capture(u) for u in chosen.values()),
+                                   return_exceptions=True)
+    taken = sum(1 for r in results if r is True)
 
     if log:
         await log("info", f"[screenshots] captured {taken} of {len(chosen)} "
