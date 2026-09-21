@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-1105%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-1117%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Merlon runs 42 detection engines over a target, normalises everything they
@@ -22,7 +22,7 @@ and **working Hack The Box machines and CTFs** without leaving the app.
 
 > ### Beta — actively developed
 >
-> Merlon is in **beta** and moving quickly. The 1105-test suite runs on every
+> Merlon is in **beta** and moving quickly. The 1117-test suite runs on every
 > commit and the image is exercised in CI, so it is usable today — and these are
 > the things being built next:
 >
@@ -119,6 +119,16 @@ commentary.
 Docker is installed for you if you don't have it; everything else runs inside
 the containers. On Windows, Docker Desktop uses the WSL2 backend, which Docker's
 own installer sets up.
+
+**A scan that stopped short** picks up rather than starting over:
+
+```bash
+python -m app.cli resume 42          # or POST /api/scans/42/resume
+```
+
+Stages already finished are skipped, and the live services the scan had found
+are read back from its own results rather than probed again — so a run that
+died in nuclei does not pay for the whole recon a second time.
 
 **Stop it:** `docker compose down` · **Logs:** `docker compose logs -f backend`
 · **Something wrong:** `./diagnose.sh` · **Wipe scan history and start clean:**
@@ -381,7 +391,7 @@ MERLON_MAX_BROWSERS=3         # headless Chromium processes at once (1 = serial)
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 1105 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 1117 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 

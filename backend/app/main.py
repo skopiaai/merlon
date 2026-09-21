@@ -349,6 +349,27 @@ def cancel_scan(sid: int, db: Session = Depends(get_db)):
     return {"result": result, "message": messages[result]}
 
 
+@app.post("/api/scans/{sid}/resume", response_model=schemas.ScanOut)
+def resume_scan(sid: int, db: Session = Depends(get_db)):
+    """Continue a scan that stopped before it finished.
+
+    Stages already recorded as done are skipped and the live services the scan
+    had already found are read back rather than re-probed, so a scan that died
+    in nuclei does not pay for the whole recon again.
+    """
+    scan = db.get(Scan, sid)
+    if not scan:
+        raise HTTPException(404, "scan not found")
+    try:
+        # How many stages it will skip is already visible to the caller on the
+        # scan itself, in completed_stages.
+        orchestrator.resume_scan(sid)
+    except orchestrator.NotResumable as exc:
+        raise HTTPException(409, str(exc)) from exc
+    db.refresh(scan)
+    return scan
+
+
 @app.get("/api/scans/{sid}/assets", response_model=list[schemas.AssetOut])
 def scan_assets(sid: int, db: Session = Depends(get_db)):
     return list(db.scalars(select(Asset).where(Asset.scan_id == sid).order_by(Asset.host)))

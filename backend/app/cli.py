@@ -81,11 +81,11 @@ def _finding_dict(f) -> dict:
     }
 
 
-async def _run_scan(scan_id: int, *, verify: bool) -> None:
+async def _run_scan(scan_id: int, *, verify: bool, resume: bool = False) -> None:
     from . import orchestrator
     from . import verify as verify_mod
 
-    await orchestrator.ScanRunner(scan_id).run()
+    await orchestrator.ScanRunner(scan_id, resume=resume).run()
     if verify:
         await verify_mod.verify_scan(scan_id)
 
@@ -174,6 +174,53 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_resume(args: argparse.Namespace) -> int:
+    """Continue a scan that stopped before it finished."""
+    from sqlalchemy import select
+
+    from .db import SessionLocal, init_db
+    from .models import Finding, Scan
+
+    init_db()
+    with SessionLocal() as db:
+        scan = db.get(Scan, args.scan_id)
+        if scan is None:
+            print(f"error: scan {args.scan_id} not found", file=sys.stderr)
+            return 2
+        state = scan.state.value if hasattr(scan.state, "value") else str(scan.state)
+        if state == "completed":
+            print(f"error: scan {args.scan_id} already completed", file=sys.stderr)
+            return 2
+        done = list(scan.completed_stages or [])
+        target = scan.seeds[0] if scan.seeds else "?"
+
+    if not args.quiet:
+        print(f"resuming scan {args.scan_id} ({target}) — skipping "
+              f"{len(done)} completed stage(s)", file=sys.stderr)
+
+    asyncio.run(_run_scan(args.scan_id, verify=not args.no_verify, resume=True))
+
+    with SessionLocal() as db:
+        scan = db.get(Scan, args.scan_id)
+        rows = list(db.scalars(select(Finding).where(Finding.scan_id == args.scan_id)))
+        report = {
+            "scan_id": args.scan_id, "target": target,
+            "depth": scan.profile,
+            "state": scan.state.value if hasattr(scan.state, "value") else str(scan.state),
+            "error": scan.error or "",
+            "resumed": True, "skipped_stages": done,
+            "findings": [_finding_dict(f) for f in rows],
+        }
+
+    if args.json:
+        path = Path(args.json)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    else:
+        print(json.dumps(report, indent=2, default=str))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="merlon",
@@ -207,6 +254,15 @@ def build_parser() -> argparse.ArgumentParser:
                       help="with --fail-on, count only findings the scanner "
                            "proved (the target demonstrated them)")
     scan.set_defaults(func=cmd_scan)
+
+    res = sub.add_parser("resume",
+                         help="continue a scan that stopped before finishing")
+    res.add_argument("scan_id", type=int, help="the scan to continue")
+    res.add_argument("--no-verify", action="store_true",
+                     help="skip the verification pass")
+    res.add_argument("--json", metavar="PATH", help="write the JSON report here")
+    res.add_argument("--quiet", action="store_true")
+    res.set_defaults(func=cmd_resume)
     return parser
 
 

@@ -47,8 +47,13 @@ def utcnow():
 
 
 class ScanRunner:
-    def __init__(self, scan_id: int):
+    def __init__(self, scan_id: int, resume: bool = False):
         self.scan_id = scan_id
+        # When resuming, stages already recorded as finished are skipped and the
+        # hosts and URLs they produced are read back from the assets the scan
+        # already saved, rather than rediscovered.
+        self.resume = resume
+        self._already_done: set[str] = set()
         self.rejected: list[dict] = []
         self._stage_plan: list[str] = []
         self._weights: list[int] = []
@@ -91,6 +96,12 @@ class ScanRunner:
                 seeds = list(scan.seeds)
                 profile = scan.profile
                 stages = list(scan.stages)
+                if self.resume:
+                    self._already_done = set(scan.completed_stages or [])
+                else:
+                    # A fresh run of an existing scan row starts clean, so a
+                    # re-run is never mistaken for a resume.
+                    scan.completed_stages = []
                 allow = list(engagement.allow_rules)
                 deny = list(engagement.deny_rules)
                 self.auth_headers = dict(engagement.auth_headers or {})
@@ -217,6 +228,12 @@ class ScanRunner:
             scan = db.get(Scan, self.scan_id)
             if scan:
                 scan.progress = round(pct, 4)
+                # Recorded here rather than at the end of the run because the
+                # whole point is surviving a run that never reaches its end.
+                done = list(scan.completed_stages or [])
+                if stage not in done:
+                    done.append(stage)
+                    scan.completed_stages = done
                 db.commit()
 
     async def _run_engine_phase(self, phase: str, stages: list[str],
@@ -338,7 +355,22 @@ class ScanRunner:
         cfg = recon.PROFILES.get(profile, recon.PROFILES["standard"])
         rate = min(cfg["rate"], MAX_RATE_LIMIT)
         conc = min(cfg["conc"], MAX_CONCURRENCY)
+
+        # Plan against the *original* stage list so the percentage still means
+        # the same thing on a resumed run, then credit the work already done.
+        # Planning against only what is left would show a scan that died at 80%
+        # restarting at 0% and racing to 100% having done less.
         self._plan(stages)
+        if self._already_done:
+            for finished in self._already_done:
+                if finished in self._stage_plan:
+                    self._done_weight += self._weights[self._stage_plan.index(finished)]
+            stages = [st for st in stages if st not in self._already_done]
+            await self.log(
+                "info",
+                f"resuming: {len(self._already_done)} stage(s) already done "
+                f"({', '.join(sorted(self._already_done))}) — skipping them",
+                "seed")
 
         # --- validate the seeds themselves ---
         await self._begin("seed")
@@ -452,13 +484,24 @@ class ScanRunner:
             await self._end("naabu")
 
         # --- live HTTP probing ---
+        # Unlike the stages above, this one is not optional, so skipping it on a
+        # resume is explicit. The assets it produced were already written to the
+        # database, so a resumed scan reads them back instead of probing every
+        # host again — which is the expensive half of getting back to where the
+        # scan died.
         await self._begin("httpx")
-        assets = await recon.httpx(probe_targets, concurrency=conc, rate=rate,
-                                   auth_headers=self.auth_headers, log=self.log)
-        assets = [a for a in assets if self._guard([a["host"]], allow, deny, "httpx")]
-        await self.log("info", f"{len(assets)} live HTTP service(s)", "httpx")
-        await self._save_assets(assets)
-        await self._save_stat("live_services", len(assets))
+        if "httpx" in self._already_done:
+            assets = self._saved_assets()
+            await self.log("info",
+                           f"resuming: {len(assets)} live service(s) restored "
+                           f"from the last run, not re-probed", "httpx")
+        else:
+            assets = await recon.httpx(probe_targets, concurrency=conc, rate=rate,
+                                       auth_headers=self.auth_headers, log=self.log)
+            assets = [a for a in assets if self._guard([a["host"]], allow, deny, "httpx")]
+            await self.log("info", f"{len(assets)} live HTTP service(s)", "httpx")
+            await self._save_assets(assets)
+            await self._save_stat("live_services", len(assets))
 
         # heuristic findings + strict header audit
         for a in assets:
@@ -704,6 +747,23 @@ class ScanRunner:
             db.commit()
         await hub.publish(self.scan_id, {"type": "assets", "count": len(assets)})
 
+    def _saved_assets(self) -> list[dict]:
+        """The assets this scan already discovered, in the shape httpx returns.
+
+        Resume leans on these rather than on a separate checkpoint blob: they
+        are written as the scan runs and are the same data the later stages
+        would have been handed anyway, so there is no second copy of the truth
+        to drift.
+        """
+        with SessionLocal() as db:
+            rows = db.scalars(
+                select(Asset).where(Asset.scan_id == self.scan_id)).all()
+            return [{
+                "host": r.host, "url": r.url, "ip": r.ip, "port": r.port,
+                "status_code": r.status_code, "title": r.title,
+                "tech": list(r.tech or []), "raw": dict(r.raw or {}),
+            } for r in rows]
+
     async def _save_finding(self, data: dict) -> bool:
         """Insert, or bump the occurrence counter if we've seen it. Returns
         True only for genuinely new findings.
@@ -754,15 +814,15 @@ class ScanRunner:
 
 # ---------- public API ----------
 
-def _spawn(scan_id: int) -> None:
+def _spawn(scan_id: int, resume: bool = False) -> None:
     """Create the task. Must run ON the event loop."""
     if scan_id in _running:
         return
-    runner = ScanRunner(scan_id)
+    runner = ScanRunner(scan_id, resume=resume)
     _running[scan_id] = asyncio.create_task(runner.run())
 
 
-def start_scan(scan_id: int) -> None:
+def start_scan(scan_id: int, resume: bool = False) -> None:
     """Safe to call from either an async endpoint or a threadpool one."""
     if scan_id in _running:
         return
@@ -775,9 +835,34 @@ def start_scan(scan_id: int) -> None:
                 "Scan scheduler is not ready — the event loop was never bound. "
                 "This is a bug; restart the backend."
             ) from None
-        _main_loop.call_soon_threadsafe(_spawn, scan_id)
+        _main_loop.call_soon_threadsafe(_spawn, scan_id, resume)
         return
-    _spawn(scan_id)
+    _spawn(scan_id, resume)
+
+
+class NotResumable(Exception):
+    """The scan is not in a state that can be resumed."""
+
+
+def resume_scan(scan_id: int) -> int:
+    """Continue a scan that stopped before it finished.
+
+    Only a scan that actually stopped short can be resumed: a completed one has
+    nothing left to do, and a running one would end up with two runners writing
+    the same rows. Returns how many stages will be skipped.
+    """
+    with SessionLocal() as db:
+        scan = db.get(Scan, scan_id)
+        if scan is None:
+            raise NotResumable(f"scan {scan_id} not found")
+        if scan_id in _running or scan.state == ScanState.running:
+            raise NotResumable(f"scan {scan_id} is still running")
+        if scan.state == ScanState.completed:
+            raise NotResumable(f"scan {scan_id} already completed")
+        already = len(scan.completed_stages or [])
+
+    start_scan(scan_id, resume=True)
+    return already
 
 
 def _force_state(scan_id: int, state: ScanState, error: str) -> bool:

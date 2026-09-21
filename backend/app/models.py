@@ -124,6 +124,9 @@ class Scan(Base):
 
     stats: Mapped[dict] = mapped_column(JSON, default=dict)
     rejected_hosts: Mapped[list] = mapped_column(JSON, default=list)
+    # Stages that finished, so an interrupted scan can pick up rather than
+    # start over. Recorded as each stage ends; read only when resuming.
+    completed_stages: Mapped[list] = mapped_column(JSON, default=list)
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
