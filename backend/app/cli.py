@@ -221,6 +221,46 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    """What changed between two scans' findings."""
+    from . import watch
+    from .db import SessionLocal, init_db
+    from .models import Scan
+
+    init_db()
+    with SessionLocal() as db:
+        scan = db.get(Scan, args.scan_id)
+        if scan is None:
+            print(f"error: scan {args.scan_id} not found", file=sys.stderr)
+            return 2
+        engagement_id = scan.engagement_id
+
+    if args.against is None:
+        baseline, current = watch.last_two_scans(engagement_id)
+        if baseline is None:
+            print("error: only one completed scan for this engagement — "
+                  "nothing to compare against", file=sys.stderr)
+            return 2
+        result = watch.diff_findings(baseline, current)
+    else:
+        result = watch.diff_findings(args.against, args.scan_id)
+
+    result["summary_text"] = watch.summarise_findings(result)
+
+    if args.json:
+        path = Path(args.json)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+    else:
+        print(json.dumps(result, indent=2, default=str))
+
+    if not args.quiet:
+        print(f"scan {result['baseline_scan']} -> {result['current_scan']}",
+              file=sys.stderr)
+        print(result["summary_text"], file=sys.stderr)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="merlon",
@@ -263,6 +303,15 @@ def build_parser() -> argparse.ArgumentParser:
     res.add_argument("--json", metavar="PATH", help="write the JSON report here")
     res.add_argument("--quiet", action="store_true")
     res.set_defaults(func=cmd_resume)
+
+    dif = sub.add_parser("diff", help="what changed since an earlier scan")
+    dif.add_argument("scan_id", type=int, help="the newer scan")
+    dif.add_argument("--against", type=int, default=None,
+                     help="the older scan to compare against "
+                          "(default: the previous completed scan)")
+    dif.add_argument("--json", metavar="PATH", help="write the JSON diff here")
+    dif.add_argument("--quiet", action="store_true")
+    dif.set_defaults(func=cmd_diff)
     return parser
 
 

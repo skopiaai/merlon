@@ -166,7 +166,11 @@ def last_two_scans(engagement_id: int) -> tuple[int | None, int | None]:
             select(Scan)
             .where(Scan.engagement_id == engagement_id,
                    Scan.state == ScanState.completed)
-            .order_by(Scan.finished_at.desc())
+            # id as a tiebreaker: finished_at can be NULL on a row that was
+            # marked completed without going through _finish, and NULLs make
+            # the order undefined — which would silently compare the wrong two
+            # scans rather than fail.
+            .order_by(Scan.finished_at.desc(), Scan.id.desc())
             .limit(2)))
     if len(scans) < 2:
         return (None, scans[0].id if scans else None)
@@ -316,3 +320,162 @@ def watch_targets() -> list[dict]:
                 "seeds": list(last.seeds) if last else [],
             })
     return out
+
+
+# ---------------------------------------------------------------------------
+# Findings, rather than surface
+#
+# The diff above answers "what appeared". This answers "what is new, and what
+# went away" about the findings themselves, which is the question someone
+# monitoring a programme actually asks on a Monday.
+#
+# The care is all in one place: **absence is not a fix.** A finding that is
+# missing from the newer scan usually means it was fixed — but it also means
+# exactly that if the engine which found it never ran, because the rescan was
+# shallower, the engine was disabled, or the scan stopped early. Reporting
+# those as "fixed" would tell someone a vulnerability is gone when nobody
+# looked, which is the most damaging thing a security tool can say.
+# ---------------------------------------------------------------------------
+
+def finding_index(scan_id: int) -> dict[str, dict]:
+    """Every finding in a scan, keyed by the identity it keeps across scans.
+
+    `dedupe_key` is already the project's notion of "the same finding seen
+    again" — the orchestrator uses it to bump occurrences rather than insert a
+    duplicate — so it is the right key here too rather than a second one.
+    """
+    from .models import Finding
+
+    with SessionLocal() as db:
+        rows = db.scalars(select(Finding).where(Finding.scan_id == scan_id)).all()
+        out: dict[str, dict] = {}
+        for f in rows:
+            key = f.dedupe_key or f"{f.engine}:{f.rule_id}:{f.host}:{f.url}"
+            verification = f.verification or {}
+            out[key] = {
+                "dedupe_key": key,
+                "engine": f.engine,
+                "rule_id": f.rule_id,
+                "name": f.name,
+                "severity": (f.severity.value if hasattr(f.severity, "value")
+                             else str(f.severity)),
+                "host": f.host,
+                "url": f.url,
+                "tier": verification.get("tier"),
+            }
+        return out
+
+
+def engines_that_ran(scan_id: int) -> set[str]:
+    """Which engines this scan actually got through.
+
+    Read from the stages it recorded completing, falling back to the engines
+    that produced findings. Used to tell "this was fixed" apart from "nobody
+    checked".
+    """
+    from .models import Finding
+
+    with SessionLocal() as db:
+        scan = db.get(Scan, scan_id)
+        ran: set[str] = set(scan.completed_stages or []) if scan else set()
+        # An engine that produced a finding plainly ran, whatever the stage
+        # record says — this keeps older scans, recorded before stages were
+        # tracked, from looking like they ran nothing.
+        ran |= {e for (e,) in db.execute(
+            select(Finding.engine).where(Finding.scan_id == scan_id).distinct())}
+        return ran
+
+
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+
+def _by_severity(items: list[dict]) -> list[dict]:
+    return sorted(items, key=lambda f: (_SEVERITY_ORDER.get(f["severity"], 4),
+                                        f["host"], f["name"]))
+
+
+def diff_findings(baseline_id: int, current_id: int) -> dict:
+    """What changed between two scans' findings.
+
+    Four buckets, because three would be a lie:
+
+      new            present now, absent before
+      fixed          present before, absent now — and the engine did run again
+      still_open     present in both
+      not_rechecked  present before, absent now, but the engine that found it
+                     did not run this time, so nothing was actually verified
+    """
+    before = finding_index(baseline_id)
+    after = finding_index(current_id)
+    ran_now = engines_that_ran(current_id)
+
+    new = [f for k, f in after.items() if k not in before]
+    still_open = [f for k, f in after.items() if k in before]
+
+    fixed, not_rechecked = [], []
+    for key, finding in before.items():
+        if key in after:
+            continue
+        if finding["engine"] in ran_now:
+            fixed.append(finding)
+        else:
+            not_rechecked.append(finding)
+
+    def counts(items: list[dict]) -> dict:
+        out: dict[str, int] = {}
+        for f in items:
+            out[f["severity"]] = out.get(f["severity"], 0) + 1
+        return out
+
+    return {
+        "baseline_scan": baseline_id,
+        "current_scan": current_id,
+        "new": _by_severity(new),
+        "fixed": _by_severity(fixed),
+        "still_open": _by_severity(still_open),
+        "not_rechecked": _by_severity(not_rechecked),
+        "summary": {
+            "new": counts(new),
+            "fixed": counts(fixed),
+            "still_open": counts(still_open),
+            "not_rechecked": counts(not_rechecked),
+        },
+    }
+
+
+def diff_findings_engagement(engagement_id: int) -> dict:
+    """The same, for the two most recent completed scans of an engagement."""
+    baseline, current = last_two_scans(engagement_id)
+    if current is None:
+        return {"error": "no completed scans for this engagement"}
+    if baseline is None:
+        return {"error": "only one completed scan — nothing to compare against",
+                "current_scan": current}
+    return diff_findings(baseline, current)
+
+
+def summarise_findings(result: dict) -> str:
+    """One paragraph a human can read without opening the list."""
+    if "error" in result:
+        return result["error"]
+    s = result["summary"]
+
+    def line(label: str, bucket: str) -> str:
+        counts = s[bucket]
+        total = sum(counts.values())
+        if not total:
+            return ""
+        detail = ", ".join(f"{n} {sev}" for sev, n in
+                           sorted(counts.items(),
+                                  key=lambda kv: _SEVERITY_ORDER.get(kv[0], 4)))
+        return f"{label}: {total} ({detail})"
+
+    parts = [p for p in (line("New", "new"), line("Fixed", "fixed"),
+                         line("Still open", "still_open")) if p]
+    text = " · ".join(parts) or "No change."
+    stale = sum(s["not_rechecked"].values())
+    if stale:
+        text += (f" · {stale} finding(s) from the previous scan were not "
+                 f"rechecked, because the engine that found them did not run "
+                 f"this time — they are not known to be fixed.")
+    return text

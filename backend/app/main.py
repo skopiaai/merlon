@@ -370,6 +370,37 @@ def resume_scan(sid: int, db: Session = Depends(get_db)):
     return scan
 
 
+@app.get("/api/scans/{sid}/diff")
+def diff_scan_findings(sid: int, against: int | None = None,
+                       db: Session = Depends(get_db)):
+    """What changed in this scan's findings versus an earlier one.
+
+    With no `against`, compares the two most recent completed scans of the same
+    engagement — "what is new since last time", which is the question worth
+    asking on a schedule.
+    """
+    from . import watch
+
+    scan = db.get(Scan, sid)
+    if not scan:
+        raise HTTPException(404, "scan not found")
+
+    if against is None:
+        baseline, current = watch.last_two_scans(scan.engagement_id)
+        if baseline is None:
+            raise HTTPException(
+                409, "only one completed scan for this engagement — "
+                     "nothing to compare against")
+        result = watch.diff_findings(baseline, current)
+    else:
+        if not db.get(Scan, against):
+            raise HTTPException(404, f"scan {against} not found")
+        result = watch.diff_findings(against, sid)
+
+    result["summary_text"] = watch.summarise_findings(result)
+    return result
+
+
 @app.get("/api/scans/{sid}/assets", response_model=list[schemas.AssetOut])
 def scan_assets(sid: int, db: Session = Depends(get_db)):
     return list(db.scalars(select(Asset).where(Asset.scan_id == sid).order_by(Asset.host)))
