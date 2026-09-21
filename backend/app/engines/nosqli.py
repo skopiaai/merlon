@@ -71,7 +71,7 @@ def similarity(a: str, b: str) -> float:
     return (len_ratio + tok) / 2
 
 
-def operator_probes(param: str, rand: str) -> list[tuple[str, str, str]]:
+def operator_probes(param: str) -> list[tuple[str, str, str]]:
     """(true_param_name, false_param_name, style).
 
     Operator injection changes the parameter *name*, not just the value:
@@ -166,7 +166,7 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
             if not base.ok:
                 continue
             rand = secrets.token_hex(6)
-            for op_true, op_false, style in operator_probes(param, rand):
+            for op_true, op_false, style in operator_probes(param):
                 rt = await fetch.request(with_operator(url, param, op_true, rand),
                                          timeout=12, ctx=ctx)
                 rf = await fetch.request(with_operator(url, param, op_false, rand),

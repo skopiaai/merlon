@@ -7,7 +7,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](#beta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install-and-run)
-[![Tests](https://img.shields.io/badge/tests-1093%20passing-brightgreen.svg)](backend/tests)
+[![Tests](https://img.shields.io/badge/tests-1098%20passing-brightgreen.svg)](backend/tests)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](backend/requirements.txt)
 
 Merlon runs 42 detection engines over a target, normalises everything they
@@ -22,7 +22,7 @@ and **working Hack The Box machines and CTFs** without leaving the app.
 
 > ### Beta — actively developed
 >
-> Merlon is in **beta** and moving quickly. The 1093-test suite runs on every
+> Merlon is in **beta** and moving quickly. The 1098-test suite runs on every
 > commit and the image is exercised in CI, so it is usable today — and these are
 > the things being built next:
 >
@@ -380,7 +380,7 @@ MERLON_MAX_RATE_LIMIT=150     # global requests/sec ceiling
 ## Development
 
 ```bash
-cd backend && python -m pytest tests/ -q     # 1093 unit tests, no network
+cd backend && python -m pytest tests/ -q     # 1098 unit tests, no network
 ./run-lab-tests.sh                           # integration, against local targets
 ```
 

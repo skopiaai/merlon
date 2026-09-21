@@ -144,3 +144,84 @@ def test_engine_registered_and_proves():
 def test_proof_tier_recognises_it():
     from app import verify
     assert verify.is_proven_rule("domxss", "domxss-executed") is True
+
+
+# ---------------------------------------------------------------- render budget
+
+def test_probe_values_collapse_the_markup_payloads():
+    """One value carries every markup sink, so one load answers for all of them."""
+    probes = D.probe_values("mrlCANARY")
+    assert len(probes) == 2, "markup sinks combined, javascript: kept separate"
+    markup, js = probes[0][0], probes[1][0]
+    assert "<img" in markup and "<svg" in markup and "<script" in markup
+    assert "mrlCANARY" in markup
+    # javascript: only works when the WHOLE value is the URL, so it must not
+    # have anything concatenated onto it.
+    assert js.startswith("javascript:")
+    assert "<img" not in js
+
+
+def test_a_clean_host_costs_two_loads_per_vector(monkeypatch):
+    """The regression this guards: it used to be five, plus a wasted baseline.
+
+    Twenty-one loads per host is about thirteen minutes of a deep scan spent on
+    pages that mostly have no DOM XSS at all.
+    """
+    monkeypatch.setattr(browser, "available", lambda: True)
+    loads = []
+
+    async def counting_render(url, **kw):
+        loads.append(url)
+        return browser.Render(url=url, ok=True,
+                              dom="<html><head><title>safe</title></head></html>")
+
+    monkeypatch.setattr(browser, "render", counting_render)
+    # one fragment vector + two params = 3 vectors
+    out = run_coroutine(D._engine(["https://x.com/p?a=1&b=2"], {}))
+    assert out == []
+    assert len(loads) == 3 * 2, f"expected 6 loads for a clean host, got {len(loads)}"
+
+
+def test_no_baseline_load_is_made(monkeypatch):
+    """Every load must carry a payload; a bare page load answered no question."""
+    monkeypatch.setattr(browser, "available", lambda: True)
+    loads = []
+
+    async def counting_render(url, **kw):
+        loads.append(url)
+        return browser.Render(url=url, ok=True, dom="<title>safe</title>")
+
+    monkeypatch.setattr(browser, "render", counting_render)
+    run_coroutine(D._engine(["https://x.com/p"], {}))
+    assert loads, "no loads at all"
+    for u in loads:
+        assert "#" in u or "=" in u, f"{u} looks like a payload-free baseline load"
+
+
+def test_a_hit_names_the_specific_sink(monkeypatch):
+    """On a hit the individual payloads are replayed to identify the sink."""
+    monkeypatch.setattr(browser, "available", lambda: True)
+
+    async def svg_only_render(url, **kw):
+        import re
+        from urllib.parse import unquote
+        dec = unquote(url)
+        # this page only executes the svg/onload form
+        m = re.search(r"<svg onload=\"document\.title='(mrl[0-9a-f]+)'\">", dec)
+        if m:
+            return browser.Render(url=url, ok=True,
+                                  dom=f"<title>{m.group(1)}</title>")
+        return browser.Render(url=url, ok=True, dom="<title>safe</title>")
+
+    monkeypatch.setattr(browser, "render", svg_only_render)
+    out = run_coroutine(D._engine(["https://x.com/p"], {}))
+    assert len(out) == 1
+    assert out[0]["raw"]["sink"] == "innerHTML (svg/onload)", \
+        "the combined probe fired, so the narrowing pass must name the real sink"
+
+
+def test_probe_url_routes_by_vector():
+    frag = D.probe_url("https://x.com/p?a=1", "fragment", "", "PAY")
+    assert "#" in frag and "a=1" in frag
+    par = D.probe_url("https://x.com/p?a=1&b=2", "param:a", "a", "PAY")
+    assert "a=PAY" in par and "b=2" in par and "#" not in par

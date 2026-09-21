@@ -20,7 +20,7 @@ def test_error_signatures():
 
 
 def test_operator_probes_change_the_param_name():
-    probes = N.operator_probes("user", "rnd")
+    probes = N.operator_probes("user")
     assert ("user[$ne]", "user[$eq]", "$ne / $eq") in probes
 
 

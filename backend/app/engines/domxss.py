@@ -43,7 +43,8 @@ def payloads(canary: str) -> list[tuple[str, str]]:
     """(payload, the sink it is shaped for).
 
     Each sets document.title to the canary and does nothing else — no network
-    call, no storage write, no navigation.
+    call, no storage write, no navigation. Used to *name* the sink once
+    something has fired; the scan itself sends the combined probes below.
     """
     set_title = f"document.title='{canary}'"
     return [
@@ -53,6 +54,29 @@ def payloads(canary: str) -> list[tuple[str, str]]:
         (f"<script>{set_title}</script>", "document.write / script sink"),
         (f"javascript:{set_title}", "javascript: URL sink"),
     ]
+
+
+def probe_values(canary: str) -> list[tuple[str, str]]:
+    """The probes actually sent: as few page loads as will still find it.
+
+    Each headless render costs a couple of seconds, and firing every payload at
+    every vector meant twenty-one loads per host — about thirteen minutes of a
+    deep scan spent almost entirely on pages with no DOM XSS at all.
+
+    The markup payloads are concatenated into one value instead. Whichever sink
+    the page has, the same canary lands in the title, so one load answers the
+    question for all of them. The `javascript:` payload stays separate because
+    it only works when the *whole* value becomes a URL — concatenating anything
+    onto it stops it being one.
+
+    That is two loads per vector rather than five, and the individual payloads
+    are only replayed afterwards, on the rare page where something fired, to say
+    which sink it was.
+    """
+    markup = "".join(p for p, _sink in payloads(canary)
+                     if not p.startswith("javascript:"))
+    js = next(p for p, _sink in payloads(canary) if p.startswith("javascript:"))
+    return [(markup, "markup sink"), (js, "javascript: URL sink")]
 
 
 def fragment_url(url: str, payload: str) -> str:
@@ -77,6 +101,13 @@ def executed(title: str, canary: str) -> bool:
 
 def candidate_params(url: str) -> list[str]:
     return [k for k, _ in parse_qsl(urlparse(url).query, keep_blank_values=True)]
+
+
+def probe_url(url: str, vector: str, param: str, value: str) -> str:
+    """Place a payload on the vector being tested."""
+    if vector == "fragment":
+        return fragment_url(url, value)
+    return param_url(url, param, value)
 
 
 @register(EngineSpec(
@@ -112,13 +143,10 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
         if not host or host in seen:
             continue
 
-        # Baseline: what is the title when we inject nothing? A page that
-        # already happens to contain our random canary is impossible, but a
-        # failed render must not be read as "did not execute".
-        base = await browser.render(url.split("#", 1)[0])
-        if not base.ok:
-            continue
-
+        # No baseline load. The canary is random per probe, so a page cannot
+        # already contain it, and nothing here compares against a "before"
+        # title — the previous baseline render was a page load per host that
+        # answered no question.
         hit = None
 
         # Fragment first — it is the commonest DOM-XSS source and never reaches
@@ -130,16 +158,31 @@ async def _engine(targets: list[str], ctx: dict) -> list[dict]:
             if hit:
                 break
             canary = make_canary()
-            for payload, sink in payloads(canary):
-                probe = (fragment_url(url, payload) if vector_name == "fragment"
-                         else param_url(url, param, payload))
+            for value, kind in probe_values(canary):
+                probe = probe_url(url, vector_name, param, value)
                 r = await browser.render(probe)
-                if not r.ok:
+                if not r.ok or not executed(r.title, canary):
                     continue
-                if executed(r.title, canary):
-                    hit = {"payload": payload, "sink": sink, "probe": probe,
-                           "vector": vector_name, "canary": canary}
-                    break
+
+                # Something fired. Replay the individual payloads to name the
+                # sink — only reached on a page that actually has the bug, so
+                # the cost lands where it is worth paying.
+                sink, shown, at = kind, value, probe
+                narrow = make_canary()
+                for one, one_sink in payloads(narrow):
+                    if kind == "javascript: URL sink" and not one.startswith("javascript:"):
+                        continue
+                    if kind == "markup sink" and one.startswith("javascript:"):
+                        continue
+                    one_probe = probe_url(url, vector_name, param, one)
+                    rr = await browser.render(one_probe)
+                    if rr.ok and executed(rr.title, narrow):
+                        sink, shown, at = one_sink, one, one_probe
+                        break
+
+                hit = {"payload": shown, "sink": sink, "probe": at,
+                       "vector": vector_name, "canary": canary}
+                break
 
         if not hit:
             continue
